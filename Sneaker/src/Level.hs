@@ -122,14 +122,13 @@ findEndNode (Grid (row:rows)) = case find isEnd row of
   where isEnd Nothing = False
         isEnd (Just (NodeInfo t _)) = t == End
 
+-- This sure does feel like a hack
 showInitialFrame :: Actor 
                  -> [Actor] 
-                 -> Grid (Maybe (NodeInfo Actor)) 
                  -> IO ()
-showInitialFrame h js g = undefined
+showInitialFrame h js = print . update cleanGrid $ h : js
 
 -- Main loop
--- TODO: make sure the initial grid is printed before making the first move
 runLevel :: Actor -> [Actor] -> IO () 
 runLevel mrSneakyMan jerks = forever $ do
 -- Need to update checkEndConditions first
