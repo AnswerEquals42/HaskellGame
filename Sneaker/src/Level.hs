@@ -10,13 +10,24 @@ import System.Exit (exitSuccess)
 
 newtype Grid a = Grid [[a]] deriving Show
 
---instance Show (Grid (Maybe (NodeInfo Actor))) where
--- show on each cell of each row
---  show (Grid rows) = unlines . foldr f [] $ rows
---    where f row acc = innerShowRow row : acc
+showGrid :: Grid (Maybe (NodeInfo Actor)) -> String
+showGrid (Grid rows) = unlines . foldr f [] $ rows
+ where f r acc = showRow r : acc
 
-innerShowRow :: [Maybe (NodeInfo Actor)] -> String
-innerShowRow = undefined
+showRow :: [Maybe (NodeInfo Actor)] -> String
+showRow cells = foldr f "" cells
+  where f c acc = foldr (:) acc $ showNode c
+
+showNode :: Maybe (NodeInfo Actor) -> String
+showNode Nothing = "   "
+showNode (Just (NodeInfo t st)) = f st
+  where f [] = " . "
+        f [x] = " " ++ showActor x ++ " "
+        f [x,y] = showActor x ++ " " ++ showActor y
+        f (x:y:z:_) = showActor x ++ showActor y ++ showActor z
+
+showActor :: Actor -> String
+showActor = pure . head . show . actorType
 
 data GridError =
     NoEndNode
@@ -58,7 +69,6 @@ jaggedRows (r:r':rs) = if length r /= length r'
 
 data NodeInfo a =
   NodeInfo { nodeType :: NodeType
-          -- Two Actor spots for when someone is about to get dropped
            , nodeState :: [a] }
            deriving Show
 
@@ -122,23 +132,19 @@ findEndNode (Grid (row:rows)) = case find isEnd row of
   where isEnd Nothing = False
         isEnd (Just (NodeInfo t _)) = t == End
 
--- This sure does feel like a hack
-showInitialFrame :: Actor 
-                 -> [Actor] 
-                 -> IO ()
-showInitialFrame h js = print . update cleanGrid $ h : js
-
--- Main loop
-runLevel :: Actor -> [Actor] -> IO () 
-runLevel mrSneakyMan jerks = forever $ do
--- Need to update checkEndConditions first
-  putStrLn "---------------"
-  putStrLn "Make your move:"
-  move <- getHeroMove
-  let newSneaky = (updateActor mrSneakyMan move) 
-   -- newJerks = updateJerks jerks
-      postMove = update cleanGrid $ newSneaky : jerks
-    in if checkEndConditions postMove
-        then print postMove >> putStrLn "You made it. Game Over." >> exitSuccess
-       else print postMove >> runLevel newSneaky jerks
+-- ! Main Loop !
+runLevel :: Actor -> [Actor] -> Move -> IO ()
+runLevel h vs move = --forever $ 
+  let h' = updateActor h move
+    --vs' = updateNPCs vs
+      grid = update cleanGrid $ h' : vs
+    in if checkEndConditions grid
+        then putStrLn (showGrid grid) >>
+             putStrLn "You made it. Game over." >>
+             exitSuccess
+      else putStrLn "-------------------" >>
+           putStrLn (showGrid grid) >>
+           putStrLn "-------------------" >>
+           putStrLn "Choose a direction:" >>
+           getHeroMove >>= \newMove -> runLevel h' vs newMove
 

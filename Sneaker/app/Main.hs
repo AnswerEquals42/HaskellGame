@@ -10,5 +10,5 @@ jerks :: [Actor]
 jerks = []
 
 main :: IO ()
-main = showInitialFrame hero jerks >> runLevel hero jerks
+main = runLevel hero jerks StandPat
 
