@@ -67,6 +67,17 @@ jaggedRows (r:r':rs) = if length r /= length r'
                         then True
                        else jaggedRows (r':rs)
 
+-- This is pretty ugly. I can do better.
+isValidPosition :: Grid (Maybe (NodeInfo Actor)) -> Position -> Bool
+isValidPosition (Grid rows) (Position r c) = 
+  if r < 0 || r >= length rows
+    then False
+  else if c < 0 || c >= length (rows !! r)
+        then False
+       else case rows !! r !! c of
+              Nothing -> False
+              Just _  -> True
+
 data NodeInfo a =
   NodeInfo { nodeType :: NodeType
            , nodeState :: [a] }
@@ -135,16 +146,25 @@ findEndNode (Grid (row:rows)) = case find isEnd row of
 -- ! Main Loop !
 runLevel :: Actor -> [Actor] -> Move -> IO ()
 runLevel h vs move = --forever $ 
+-- TODO: get rid of multiple updateActor
   let h' = updateActor h move
+      f = updateActor h'
     --vs' = updateNPCs vs
       grid = update cleanGrid $ h' : vs
     in if checkEndConditions grid
-        then putStrLn (showGrid grid) >>
+        then putStrLn "-------------------" >>
+             putStrLn (showGrid grid) >>
+             putStrLn "-------------------" >>
              putStrLn "You made it. Game over." >>
              exitSuccess
       else putStrLn "-------------------" >>
            putStrLn (showGrid grid) >>
            putStrLn "-------------------" >>
            putStrLn "Choose a direction:" >>
-           getHeroMove >>= \newMove -> runLevel h' vs newMove
+           getHeroMove >>= 
+            \newMove -> 
+             if isValidPosition grid (position (f newMove))
+              then runLevel h' vs newMove
+             else putStrLn "Can't move that direction" >>
+                  runLevel h vs move
 

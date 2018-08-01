@@ -48,10 +48,10 @@ updateActor (Actor t i d _ p) (Go South) = Actor t i d South $ updatePosition p 
 updateActor (Actor t i d _ p) (Go West)  = Actor t i d West $ updatePosition p West
 
 updatePosition :: Position -> Direction -> Position
-updatePosition (Position r c) North = flip Position c $ max 0 (r - 1)
+updatePosition (Position r c) North = Position (r - 1) c
 updatePosition (Position r c) East = Position r (c + 1)
 updatePosition (Position r c) South = Position (r + 1) c
-updatePosition (Position r c) West = Position r $ max 0 (c - 1)
+updatePosition (Position r c) West = Position r (c - 1)
 
 -- Not sure about the type, but we need this function ... I think
 getActorMoves :: [(Actor, Move)] -> [(Actor, Move)]
@@ -81,8 +81,6 @@ getHeroMove =
       (return . strToMove $ input) >>=
         \d -> case d of
                 Left e -> putStrLn e >> getHeroMove
-            -- This needs to do something with m. Like call a function that
-            -- starts a Level update
                 Right m -> return m
 
 
