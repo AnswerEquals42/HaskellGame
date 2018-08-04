@@ -6,6 +6,7 @@ import Level
 hero :: Actor
 hero = Actor Hero 1 [] East (Position 0 0)
 
+-- TODO: Fill this in so we can test updateNPCs
 jerks :: [Actor]
 jerks = []
 

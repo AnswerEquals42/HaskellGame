@@ -38,41 +38,54 @@ data Direction =
   | West
   deriving (Eq, Show)
 
--- TODO: Bounds checking. Create potential move and return error message
---       then loop back to player input without counting a turn
+data InputError =
+    EmptyInput
+  | UnrecognizedDirection
+  | BadMove
+  deriving Eq
+
+instance Show InputError where
+  show EmptyInput = "You didn't input anything. Try again ... or quit. What do I care?"
+  show UnrecognizedDirection = "I don't recognize that direction. Try again."
+  show BadMove = "Can't move in that direction, I'm afraid."
+
 updateActor :: Actor -> Move -> Actor
 updateActor a StandPat = a
-updateActor (Actor t i d _ p) (Go North) = Actor t i d North $ updatePosition p North
-updateActor (Actor t i d _ p) (Go East)  = Actor t i d East $ updatePosition p East
-updateActor (Actor t i d _ p) (Go South) = Actor t i d South $ updatePosition p South
-updateActor (Actor t i d _ p) (Go West)  = Actor t i d West $ updatePosition p West
+updateActor (Actor t i ds _ p) (Go d) = Actor t i ds d . updatePosition p $ d
+
+updateNPCs :: [Actor] -> [Actor]
+updateNPCs = fmap updateNPC
+
+updateNPC :: Actor -> Actor
+updateNPC (Actor t i [] f p) = Actor t i [] f p
+updateNPC (Actor t i (d:ds) f p) = 
+  let p' = updatePosition p d
+      ds' = foldr (:) [d] ds
+      f' = head ds'
+  in Actor t i ds' f' p'
 
 updatePosition :: Position -> Direction -> Position
-updatePosition (Position r c) North = Position (r - 1) c
-updatePosition (Position r c) East = Position r (c + 1)
-updatePosition (Position r c) South = Position (r + 1) c
-updatePosition (Position r c) West = Position r (c - 1)
+updatePosition (Position r c) d = 
+  case d of
+    North -> Position (r - 1) c
+    East  -> Position r (c + 1)
+    South -> Position (r + 1) c
+    West  -> Position r (c - 1)
 
--- Not sure about the type, but we need this function ... I think
-getActorMoves :: [(Actor, Move)] -> [(Actor, Move)]
-getActorMoves = undefined
-
---update (getActorModes actors) (grid) -> grid'
-
-strToMove :: String -> Either String Move
+strToMove :: String -> Either InputError Move
 strToMove s = case strToDir s of
                 Left e -> Left e
                 Right d -> Right . Go $ d
 
-strToDir :: String -> Either String Direction
-strToDir []     = Left "Empty string is invalid"
+strToDir :: String -> Either InputError Direction
+strToDir []     = Left EmptyInput
 strToDir (x:xs) = chToDir . toLower $ x
   where chToDir x'
           | x' == 'n' || x' == 'u' = Right North
           | x' == 'e' || x' == 'r' = Right East
           | x' == 's' || x' == 'd' = Right South
           | x' == 'w' || x' == 'l' = Right West
-          | otherwise              = Left "I don't recognize that direction. Try Again."
+          | otherwise              = Left UnrecognizedDirection
 
 getHeroMove :: IO Move
 getHeroMove =
@@ -80,7 +93,6 @@ getHeroMove =
     \input ->
       (return . strToMove $ input) >>=
         \d -> case d of
-                Left e -> putStrLn e >> getHeroMove
+                Left e -> print e >> getHeroMove
                 Right m -> return m
-
 

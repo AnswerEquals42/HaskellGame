@@ -8,6 +8,15 @@ import Control.Monad (forever)
 import Data.List (find)
 import System.Exit (exitSuccess)
 
+data GameDirectives =
+    ChooseDirection
+  | Winner
+  deriving Eq
+
+instance Show GameDirectives where
+  show ChooseDirection = "Choose a direction:"
+  show Winner = "You made it. Game Over."
+
 newtype Grid a = Grid [[a]] deriving Show
 
 showGrid :: Grid (Maybe (NodeInfo Actor)) -> String
@@ -67,7 +76,6 @@ jaggedRows (r:r':rs) = if length r /= length r'
                         then True
                        else jaggedRows (r':rs)
 
--- This is pretty ugly. I can do better.
 isValidPosition :: Grid (Maybe (NodeInfo Actor)) -> Position -> Bool
 isValidPosition (Grid rows) (Position r c) = 
   if r < 0 || r >= length rows
@@ -92,9 +100,6 @@ data NodeType =
   | Lootable
   deriving (Eq, Show)
 
--- TODO: clean this up
--- don't need to call clearRows if cleanGrid exists
--- probably don't need clearRows at all
 update :: Grid (Maybe (NodeInfo Actor))
        -> [Actor]
        -> Grid (Maybe (NodeInfo Actor))
@@ -137,34 +142,30 @@ hasHero (Just (NodeInfo _ actors)) = any (\a -> actorType a == Hero) actors
 
 findEndNode :: Grid (Maybe (NodeInfo Actor)) -> Maybe (NodeInfo Actor)
 findEndNode (Grid []) = Nothing
-findEndNode (Grid (row:rows)) = case find isEnd row of
-                                Nothing -> findEndNode . Grid $ rows
-                                Just endNode -> endNode
-  where isEnd Nothing = False
-        isEnd (Just (NodeInfo t _)) = t == End
+findEndNode (Grid (row:rows)) = 
+  let isEnd Nothing = False
+      isEnd (Just (NodeInfo t _)) = t == End
+  in case find isEnd row of
+       Nothing -> findEndNode . Grid $ rows
+       Just endNode -> endNode
 
 -- ! Main Loop !
 runLevel :: Actor -> [Actor] -> Move -> IO ()
 runLevel h vs move = --forever $ 
--- TODO: get rid of multiple updateActor
-  let h' = updateActor h move
-      f = updateActor h'
-    --vs' = updateNPCs vs
-      grid = update cleanGrid $ h' : vs
-    in if checkEndConditions grid
-        then putStrLn "-------------------" >>
-             putStrLn (showGrid grid) >>
-             putStrLn "-------------------" >>
-             putStrLn "You made it. Game over." >>
-             exitSuccess
-      else putStrLn "-------------------" >>
-           putStrLn (showGrid grid) >>
-           putStrLn "-------------------" >>
-           putStrLn "Choose a direction:" >>
-           getHeroMove >>= 
-            \newMove -> 
-             if isValidPosition grid (position (f newMove))
-              then runLevel h' vs newMove
-             else putStrLn "Can't move that direction" >>
-                  runLevel h vs move
+  let vs' = updateNPCs vs
+      grid = update cleanGrid $ h : vs'
+    in putStrLn "-------------------" >>
+       putStrLn (showGrid grid) >>
+       putStrLn "-------------------" >>
+       if checkEndConditions grid
+        then print Winner >> exitSuccess
+       else print ChooseDirection >>
+            getHeroMove >>= 
+              \newMove -> 
+                let h' = updateActor h newMove
+                -- TODO: move isValidPosition check to getHeroMove
+                in if isValidPosition grid . position $ h'
+                    then runLevel h' vs newMove
+                   else print BadMove >>
+                        runLevel h vs move
 
