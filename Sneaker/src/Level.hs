@@ -1,7 +1,6 @@
 -- TODO: Only expose what is needed
+--       Create Grid module and rename this one to Game?
 module Level where
--- Expose:
---  mkGrid
 
 import Actor
 import Control.Monad (forever)
@@ -11,11 +10,13 @@ import System.Exit (exitSuccess)
 data GameDirectives =
     ChooseDirection
   | Winner
+  | YouAreDead
   deriving Eq
 
 instance Show GameDirectives where
   show ChooseDirection = "Choose a direction:"
   show Winner = "You made it. Game Over."
+  show YouAreDead = "You got caught! Maybe they won't kill you ..."
 
 newtype Grid a = Grid [[a]] deriving Show
 
@@ -29,7 +30,7 @@ showRow cells = foldr f "" cells
 
 showNode :: Maybe (NodeInfo Actor) -> String
 showNode Nothing = "   "
-showNode (Just (NodeInfo t st)) = f st
+showNode (Just (NodeInfo _ _ st)) = f st
   where f [] = " . "
         f [x] = " " ++ showActor x ++ " "
         f [x,y] = showActor x ++ " " ++ showActor y
@@ -49,13 +50,22 @@ instance Show GridError where
   show TooManyHeroes = "Woah there ... only one Hero allowed at a time."
   show NoJaggedRows = "Grid has jagged rows. Only rectangular grids are allowed."
 
-regularNode :: NodeInfo Actor
-regularNode = NodeInfo Regular []
+regularNode :: [Direction] -> NodeInfo Actor
+regularNode ds = NodeInfo Regular ds []
 
 cleanGrid :: Grid (Maybe (NodeInfo Actor))
-cleanGrid = Grid $ [ [Just $ NodeInfo Start [], Just regularNode, Nothing]
-                   , [Nothing, Just regularNode, Nothing]
-                   , [Nothing, Just regularNode, Just $ NodeInfo End [] ] ]
+cleanGrid = Grid $ [ [ Just $ NodeInfo Start [East] [] 
+                     , Just $ regularNode [East, South, West] 
+                     , Just $ regularNode [South, West]
+                     , Nothing ]
+                   , [ Nothing
+                     , Just $ regularNode [North, South]
+                     , Just $ regularNode [North, South]
+                     , Nothing ]
+                   , [ Nothing
+                     , Just $ regularNode [North, East]
+                     , Just $ regularNode [North, East, West]
+                     , Just $ NodeInfo End [West] [] ] ]
 
 -- TODO: validation like
 -- requiring an End NodeInfo
@@ -76,18 +86,27 @@ jaggedRows (r:r':rs) = if length r /= length r'
                         then True
                        else jaggedRows (r':rs)
 
-isValidPosition :: Grid (Maybe (NodeInfo Actor)) -> Position -> Bool
-isValidPosition (Grid rows) (Position r c) = 
+--isValidPosition :: Grid (Maybe (NodeInfo Actor)) -> Position -> Bool
+--isValidPosition grid position = case getNodeInfo grid position of
+--                                  Nothing -> False
+--                                  Just _  -> True
+
+getNodeInfo :: Grid (Maybe (NodeInfo a)) -> Position -> Maybe (NodeInfo a)
+getNodeInfo (Grid rows) (Position r c) =
   if r < 0 || r >= length rows
-    then False
+    then Nothing
   else if c < 0 || c >= length (rows !! r)
-        then False
-       else case rows !! r !! c of
-              Nothing -> False
-              Just _  -> True
+        then Nothing
+       else rows !! r !! c 
+
+canMove :: Move -> Maybe (NodeInfo Actor) -> Bool
+canMove _ Nothing = False
+canMove (Go Nothing) _ = True
+canMove (Go (Just d)) (Just (NodeInfo _ ps _)) = elem d ps
 
 data NodeInfo a =
   NodeInfo { nodeType :: NodeType
+           , paths :: [Direction] 
            , nodeState :: [a] }
            deriving Show
 
@@ -118,7 +137,7 @@ updateRow nodes actors = updateNodes nodes 0
 updateNode :: Maybe (NodeInfo Actor) -> [Actor] -> Maybe (NodeInfo Actor)
 updateNode Nothing _ = Nothing
 updateNode node [] = node
-updateNode (Just (NodeInfo t s)) actors = Just . NodeInfo t $ addActors
+updateNode (Just (NodeInfo t ps s)) actors = Just . NodeInfo t ps $ addActors
   where addActors = foldr (:) s actors
 
 filterRowByIndex :: Int -> [Actor] -> [Actor]
@@ -138,34 +157,32 @@ checkEndConditions = hasHero . findEndNode
 
 hasHero :: Maybe (NodeInfo Actor) -> Bool
 hasHero Nothing = False
-hasHero (Just (NodeInfo _ actors)) = any (\a -> actorType a == Hero) actors
+hasHero (Just (NodeInfo _ _ actors)) = any (\a -> actorType a == Hero) actors
 
 findEndNode :: Grid (Maybe (NodeInfo Actor)) -> Maybe (NodeInfo Actor)
 findEndNode (Grid []) = Nothing
 findEndNode (Grid (row:rows)) = 
   let isEnd Nothing = False
-      isEnd (Just (NodeInfo t _)) = t == End
+      isEnd (Just (NodeInfo t _ _)) = t == End
   in case find isEnd row of
        Nothing -> findEndNode . Grid $ rows
        Just endNode -> endNode
 
 -- ! Main Loop !
 runLevel :: Actor -> [Actor] -> Move -> IO ()
-runLevel h vs move = --forever $ 
-  let vs' = updateNPCs vs
-      grid = update cleanGrid $ h : vs'
-    in putStrLn "-------------------" >>
-       putStrLn (showGrid grid) >>
-       putStrLn "-------------------" >>
-       if checkEndConditions grid
-        then print Winner >> exitSuccess
-       else print ChooseDirection >>
-            getHeroMove >>= 
-              \newMove -> 
-                let h' = updateActor h newMove
-                -- TODO: move isValidPosition check to getHeroMove
-                in if isValidPosition grid . position $ h'
-                    then runLevel h' vs newMove
-                   else print BadMove >>
-                        runLevel h vs move
+runLevel h vs move = 
+  let grid = update cleanGrid $ h : vs
+  in putStrLn "-------------------" >>
+     putStr (showGrid grid) >>
+     putStrLn "-------------------" >>
+     if checkEndConditions grid
+      then print Winner >> exitSuccess
+     else print ChooseDirection >>
+          getHeroMove >>= 
+            \newMove -> 
+              let h' = updateHero h newMove
+              in if canMove newMove . getNodeInfo grid . position $ h
+                  then runLevel h' (updateNPCs vs) newMove
+                 else print BadMove >>
+                      runLevel h vs move
 

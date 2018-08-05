@@ -26,10 +26,7 @@ data Position =
              , column :: Int }
     deriving (Eq, Show)
 
-data Move =
-    StandPat
-  | Go Direction
-  deriving Show
+data Move = Go { direction :: Maybe Direction } deriving Show
 
 data Direction =
     North
@@ -49,9 +46,9 @@ instance Show InputError where
   show UnrecognizedDirection = "I don't recognize that direction. Try again."
   show BadMove = "Can't move in that direction, I'm afraid."
 
-updateActor :: Actor -> Move -> Actor
-updateActor a StandPat = a
-updateActor (Actor t i ds _ p) (Go d) = Actor t i ds d . updatePosition p $ d
+updateHero :: Actor -> Move -> Actor
+updateHero a (Go Nothing) = a
+updateHero (Actor t i ds _ p) (Go (Just d)) = Actor t i ds d . updatePosition p $ d
 
 updateNPCs :: [Actor] -> [Actor]
 updateNPCs = fmap updateNPC
@@ -75,7 +72,7 @@ updatePosition (Position r c) d =
 strToMove :: String -> Either InputError Move
 strToMove s = case strToDir s of
                 Left e -> Left e
-                Right d -> Right . Go $ d
+                Right d -> Right . Go . Just $ d
 
 strToDir :: String -> Either InputError Direction
 strToDir []     = Left EmptyInput
