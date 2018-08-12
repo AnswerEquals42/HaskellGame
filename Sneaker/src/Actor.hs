@@ -1,6 +1,7 @@
 module Actor where
 
 import Data.Char (toLower)
+import Graphics.Gloss.Interface.Pure.Game
 
 type Id = Int
 type Facing = Direction
@@ -46,9 +47,10 @@ instance Show InputError where
   show UnrecognizedDirection = "I don't recognize that direction. Try again."
   show BadMove = "Can't move in that direction, I'm afraid."
 
-updateHero :: Actor -> Move -> Actor
-updateHero a (Go Nothing) = a
-updateHero (Actor t i ds _ p) (Go (Just d)) = Actor t i ds d . updatePosition p $ d
+-- ** Updaters
+movePlayer :: Actor -> Move -> Actor
+movePlayer a (Go Nothing) = a
+movePlayer (Actor t i ds _ p) (Go (Just d)) = Actor t i ds d . updatePosition p . pure $ d
 
 updateNPCs :: [Actor] -> [Actor]
 updateNPCs = fmap updateNPC
@@ -56,18 +58,43 @@ updateNPCs = fmap updateNPC
 updateNPC :: Actor -> Actor
 updateNPC (Actor t i [] f p) = Actor t i [] f p
 updateNPC (Actor t i (d:ds) f p) = 
-  let p' = updatePosition p d
+  let p' = updatePosition p . pure $ d
       ds' = foldr (:) [d] ds
       f' = head ds'
   in Actor t i ds' f' p'
 
-updatePosition :: Position -> Direction -> Position
-updatePosition (Position r c) d = 
+updatePosition :: Position -> Maybe Direction -> Position
+updatePosition p Nothing = p
+updatePosition (Position r c) (Just d) = 
   case d of
     North -> Position (r - 1) c
     East  -> Position r (c + 1)
     South -> Position (r + 1) c
     West  -> Position r (c - 1)
+-- **
+
+-- ** Helpers
+keyToMove :: Key -> KeyState -> Move
+keyToMove (SpecialKey k) Up = case k of
+                                KeyUp    -> Go (Just North)
+                                KeyRight -> Go (Just East)
+                                KeyDown  -> Go (Just South)
+                                KeyLeft  -> Go (Just West)
+                                _        -> Go Nothing 
+keyToMove _ _ = Go Nothing
+
+filterRowByIndex :: Int -> [Actor] -> [Actor]
+filterRowByIndex i = filter f
+  where f a = (row . position $ a) == i
+
+filterColByIndex :: Int -> [Actor] -> [Actor]
+filterColByIndex i = filter f
+  where f a = (column . position $ a) == i
+-- **
+
+-- Keep for debugging maybe?
+showActor :: Actor -> String
+showActor = pure . head . show . actorType
 
 strToMove :: String -> Either InputError Move
 strToMove s = case strToDir s of
