@@ -6,12 +6,14 @@ import Graphics.Gloss.Interface.Pure.Game
 type Id = Int
 type Facing = Direction
 
+-- TODO: add an active flag, as in a dead Actor is inactive
 -- Still feels odd having arguments that aren't always used
 data Actor = Actor 
     { actorType :: ActorType 
+--    , active :: Bool
     , actorId :: Id 
     , dirs :: [Direction] 
-    , facing :: Facing 
+    , facing :: Facing
     , position :: Position }
     deriving (Eq, Show)
 
@@ -49,8 +51,14 @@ instance Show InputError where
 
 -- ** Updaters
 movePlayer :: Actor -> Move -> Actor
-movePlayer a (Go Nothing) = a
-movePlayer (Actor t i ds _ p) (Go (Just d)) = Actor t i ds d . updatePosition p . pure $ d
+movePlayer actor (Go Nothing) = actor
+movePlayer actor (Go (Just d)) =
+  Actor <$> 
+    actorType <*> 
+    actorId <*> 
+    dirs <*> 
+    pure d <*> 
+    flip updatePosition (pure d) . position $ actor
 
 updateNPCs :: [Actor] -> [Actor]
 updateNPCs = fmap updateNPC

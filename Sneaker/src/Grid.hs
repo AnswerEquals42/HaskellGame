@@ -2,6 +2,7 @@ module Grid where
 
 import Actor
 import Data.List (find)
+import Data.Maybe (fromMaybe)
 import Graphics.Gloss.Interface.Pure.Game
 
 -- Maybe this would be better as:
@@ -222,12 +223,20 @@ canMove (Go (Just d)) (Just (NodeInfo _ ps _)) = elem d ps
 
 -- This isn't great if findEndNode returns Nothing ... that's an error
 -- that needs to be prevented
-checkEndConditions :: Grid (Maybe (NodeInfo Actor)) -> Bool
-checkEndConditions = hasHero . findEndNode
+isHeroAtEnd :: Grid (Maybe (NodeInfo Actor)) -> Bool
+isHeroAtEnd = hasHero . findEndNode
+
+isHero :: Actor -> Bool
+isHero = (== Hero) . actorType
+
+anyHero :: [Actor] -> Bool
+anyHero = any isHero
 
 hasHero :: Maybe (NodeInfo Actor) -> Bool
-hasHero Nothing = False
-hasHero (Just (NodeInfo _ _ actors)) = any (\a -> actorType a == Hero) actors
+hasHero = any isHero . nodeState . fromMaybe (NodeInfo Regular [] []) 
+
+hasNPC :: Maybe (NodeInfo Actor) -> Bool
+hasNPC = any (not . isHero) . nodeState . fromMaybe (NodeInfo Regular [] [])
 
 findEndNode :: Grid (Maybe (NodeInfo Actor)) -> Maybe (NodeInfo Actor)
 findEndNode (Grid []) = Nothing
@@ -237,6 +246,11 @@ findEndNode (Grid (row:rows)) =
   in case find isEnd row of
        Nothing -> findEndNode . Grid $ rows
        Just endNode -> endNode
+
+isHeroCaught :: Grid (Maybe (NodeInfo Actor)) -> Bool
+isHeroCaught (Grid rows) = foldr f False rows
+  where f row acc = foldr g acc row
+        g node acc' = if (&&) <$> hasHero <*> hasNPC $ node then True else acc'
 -- **
 
 -- ** Keep for debugging

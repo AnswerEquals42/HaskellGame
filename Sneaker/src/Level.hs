@@ -8,9 +8,9 @@ import Graphics.Gloss.Interface.Pure.Game
 
 data Level = Level
   { getGrid :: Grid (Maybe (NodeInfo Actor))
+-- Should player be part of Game instead?
   , player :: Actor
-  , npcs :: [Actor]
-  , isPlayerTurn :: Bool }
+  , npcs :: [Actor] }
   deriving Show
   
 -- ** Constants **
@@ -18,7 +18,8 @@ hero :: Actor
 hero = Actor Hero 1 [] East (Position 0 0)
 
 jerks :: [Actor]
-jerks = [ Actor Walker 1 [South, South, North, North] South (Position 0 2) ]
+jerks = 
+  [ Actor Walker 1 [South, South, North, North] South (Position 0 2) ]
 
 regularNode :: [Direction] -> NodeInfo Actor
 regularNode ds = NodeInfo Regular ds []
@@ -42,22 +43,21 @@ testLevel = Level
               (updateGrid cleanGrid (hero:jerks)) 
               hero 
               jerks 
-              True
 -- **
 
 -- ** Updaters **
-updateLevel :: Level -> Move -> Level
-updateLevel (Level g p ns b) move = 
-  let b' = canMove move . getNodeInfo g . position $ p
-      g' = updateGrid . clearGrid $ g
-      p' = movePlayer p move
-  in if b'
-      then Level (g' (p':ns)) p' ns False
-     else Level g p ns True
+updateLevelPlayer :: Move -> Level -> (Level, Bool)
+updateLevelPlayer move lvl = 
+  let ok = canMove move (getNodeInfo (getGrid lvl) (position (player lvl)))
+      grid' = updateGrid . clearGrid . getGrid $ lvl
+      player' = movePlayer (player lvl) move
+      ns = npcs lvl
+      lvl' = Level (grid' (player': ns)) player' ns
+  in if ok then (lvl', True) else (lvl, False)
 
 updateLevelNPCs :: Level -> Level
-updateLevelNPCs (Level grid p ns _) =
-  Level (extractAndUpdate grid) p (updateNPCs ns) True
+updateLevelNPCs (Level grid p ns) =
+  Level (extractAndUpdate grid) p (updateNPCs ns)
 -- **
 
 -- ** Picture makers **
