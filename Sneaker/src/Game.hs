@@ -2,114 +2,74 @@ module Game where
 
 import Actor
 import Grid
-import Level
 import Graphics.Gloss.Interface.Pure.Game
+import Level
+import Menu
+import Screen
 import System.Exit (exitSuccess)
 
--- List of Level?
--- Maybe a Screen typeclass with instances for Level and a new
--- type for UI screens. 
--- What methods would Screen need? display? eventHandler?
-data Game = Game 
-  { level :: Level
-  , playerTurn :: Bool
-  , directive :: GameDirective }
+data Game = Game
+  { levels :: [Level]
+  , menus :: [Menu] 
+  , viewing :: ViewTarget }
   deriving Show
 
-data GameDirective =
-    None
-  | ChooseDirection
-  | Winner
-  | YouWereCaught
-  deriving Eq
+updateGame :: Event -> Game -> Game
+updateGame e game = case viewing game of
+                      MenuScreen  -> updateGameMenus e game
+                      LevelScreen -> updateGameLevels e game
 
-instance Show GameDirective where
-  show None = ""
-  show ChooseDirection = "Use Arrow Keys to choose your direction"
-  show Winner = "You made it. Game Over."
-  show YouWereCaught = "You got caught! Maybe they'll just let you go ...?"
+updateGameMenus :: Event -> Game -> Game
+updateGameMenus _ (Game ls [] v) = Game ls [] MenuScreen
+updateGameMenus e (Game ls (m:ms) v) = 
+  let (m', _) = processEvent e m
+  in if acceptingInput m
+      then Game ls (m' : ms) (updateViewing m')
+     else Game ls (m:ms) v
 
--- TODO: Don't block Events once multiple Levels are working
-handleEvent :: Event -> Game -> Game
-handleEvent e game = if endLevel game then game
-                     else case eventToMove e of
-                            Go Nothing -> game
-                            m          -> updateGame m game 
+updateGameLevels :: Event -> Game -> Game
+updateGameLevels e (Game (l:ls) ms v) = 
+  let (l', _) = processEvent e l
+      v' = if endScreen l' then MenuScreen else LevelScreen
+  in if acceptingInput l
+      then Game (l':ls) ms v'
+     else Game (l:ls) ms v
 
-eventToMove :: Event -> Move
-eventToMove (EventKey k ks _ _) = Go $ f ks k
-  where f Up (SpecialKey sk) = case sk of
-                                KeyUp -> Just North
-                                KeyRight -> Just East
-                                KeyDown -> Just South
-                                KeyLeft -> Just West
-                                _       -> Nothing
-        f _ _ = Nothing
-eventToMove _ = Go Nothing
+-- TODO: This decides what Screen is being shown, updated, and handling events
+currentLevel :: Game -> Level
+currentLevel = head . levels
 
-updateGame :: Move -> Game -> Game
-updateGame move game = 
-  let (lvl, b) = updateLevelPlayer move . level $ game
-  in if b then Game lvl False . directive $ game
-     else game
+currentMenu :: Game -> Menu
+currentMenu = head . menus
 
-endLevel :: Game -> Bool
-endLevel = (||) <$> didYouWin <*> wereYouCaught
-
-didYouWin :: Game -> Bool
-didYouWin = isHeroAtEnd . getGrid . level
-
-wereYouCaught :: Game -> Bool
-wereYouCaught = isHeroCaught . getGrid . level
-
--- Only valid so long as directive states are in a vertical hierarchy
--- or can that be changed with multi-dimentional lists?
-updateDirective :: Game -> GameDirective
-updateDirective game = foldr go None [ (wereYouCaught, YouWereCaught)
-                                     , (didYouWin, Winner)
-                                     , (playerTurn, ChooseDirection) ]
-  where go (f, d) acc = if f game then d else acc
-                   
 mainWindow :: Display
 mainWindow = InWindow "Sneaker" (600, 600) (100, 100)
-
--- TODO: figure out how to show a title screen
-titleScreen :: Picture
-titleScreen = Translate (-200) (-200) 
-            $ Scale 0.5 0.5 
-            $ Pictures [Color (greyN 0.4) (ThickCircle 200.0 400.0), Text "Sneaker"]
 
 stepsPerSecond :: Int
 stepsPerSecond = 100
 
 initGame :: Game
-initGame = Game testLevel True ChooseDirection
+initGame = Game [testLevel] [titleScreen] MenuScreen
 
 showGame :: Game -> Picture
-showGame game = 
-  Pictures [ levelP . level $ game
-           , Translate (-280) (-200) . Scale 0.2 0.2 . Text . show $ directive game ]
---           , debugText game ]
-
-debugText :: Game -> Picture
-debugText game = 
-  let h = "H: (" ++ r ++ ", " ++ c ++ ")"
-      n = "N: (" ++ r' ++ ", " ++ c' ++ ")" 
-      r = show . row . position . player . level $ game
-      c = show . column . position . player . level $ game
-      r' = show . row . position . head . npcs . level $ game
-      c' = show . column . position . head . npcs . level $ game
-      t = h ++ " " ++ n ++ " " ++ show (wereYouCaught game) ++ " " ++ show (updateDirective game)
-  in Translate (-280) (250) . Scale 0.2 0.2 . Text $ t
+showGame game = case viewing game of
+                  MenuScreen  -> display . currentMenu $ game
+                  LevelScreen -> display . currentLevel $ game
 
 -- Float will be a constant duration equal to 1/stepsPerSecond
 updateStep :: Float -> Game -> Game
-updateStep _ game = 
-  let l = updateLevelNPCs . level $ game
-      g' = Game l True
-  in if playerTurn game 
-      then game
-     else g' . updateDirective $ g' None
+updateStep step game = case viewing game of
+                        MenuScreen -> stepGameMenu step game 
+                        LevelScreen -> stepGameLevel step game
+
+stepGameMenu :: Float -> Game -> Game
+stepGameMenu _ (Game ls [] v) = Game ls [] v
+stepGameMenu step (Game ls (m:ms) v) = 
+  Game ls (simStep step m : ms) v
+
+stepGameLevel :: Float -> Game -> Game
+stepGameLevel step (Game (l:ls) ms v) =
+  Game (simStep step l : ls) ms v
 
 playGame :: IO ()
 --main = runLevel hero jerks (Go Nothing)
@@ -119,7 +79,7 @@ playGame = play
             stepsPerSecond
             initGame
             showGame
-            handleEvent
+            updateGame
             updateStep
 
 -- ! Main Loop !
@@ -130,8 +90,8 @@ runLevel h vs move =
      putStr (showGrid grid) >>
      putStrLn "-------------------" >>
      if isHeroAtEnd grid
-      then print Winner >> exitSuccess
-     else print ChooseDirection >>
+      then print "Winner" >> exitSuccess
+     else print "Choose a direction" >>
           getHeroMove >>= 
             \newMove -> 
               let h' = movePlayer h newMove
