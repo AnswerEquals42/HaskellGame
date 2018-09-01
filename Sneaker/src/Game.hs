@@ -1,6 +1,7 @@
 module Game where
 
 import Actor
+import Data.Maybe (fromJust, isNothing)
 import Grid
 import Graphics.Gloss.Interface.Pure.Game
 import Level
@@ -10,37 +11,107 @@ import System.Exit (exitSuccess)
 
 data Game = Game
   { levels :: [Level]
-  , menus :: [Menu] 
-  , viewing :: ViewTarget }
+  , menu :: Maybe Menu -- if Nothing then Level else Just Menu
+  , levelIndex :: Int -- Is this too lazy?
+  , started :: Bool
+  , finished :: Bool
+  , paused :: Bool }
   deriving Show
 
-updateGame :: Event -> Game -> Game
-updateGame e game = case viewing game of
-                      MenuScreen  -> updateGameMenus e game
-                      LevelScreen -> updateGameLevels e game
+handleGameEvent :: Event -> Game -> Game
+handleGameEvent e game = if isShowingMenu game
+                          then processGameMenuEvent e game
+                         else processGameLevelEvent e game
 
-updateGameMenus :: Event -> Game -> Game
-updateGameMenus _ (Game ls [] v) = Game ls [] MenuScreen
-updateGameMenus e (Game ls (m:ms) v) = 
-  let (m', _) = processEvent e m
+processGameMenuEvent :: Event -> Game -> Game
+processGameMenuEvent e game =
+  let m = fromJust . menu $ game
+      (m', _) = processEvent e m
   in if acceptingInput m
-      then Game ls (m' : ms) (updateViewing m')
-     else Game ls (m:ms) v
+      then updateGameMenu m' game
+     else game
 
-updateGameLevels :: Event -> Game -> Game
-updateGameLevels e (Game (l:ls) ms v) = 
-  let (l', _) = processEvent e l
-      v' = if endScreen l' then MenuScreen else LevelScreen
+updateGameMenu :: Menu -> Game -> Game
+updateGameMenu menu game = 
+  if endScreen menu 
+    then case getSelectedAction menu of
+          StartGame -> handleStart game
+          NextLevel -> handleNextLevel game
+          Replay -> handleRetry game
+  else game
+
+handleStart :: Game -> Game
+handleStart = Game <$> 
+                levels <*> 
+                pure Nothing <*> 
+                pure 0 <*> 
+                pure True <*> 
+                pure False <*> 
+                pure False
+
+handleNextLevel :: Game -> Game
+handleNextLevel = 
+  let index' = (+1) . levelIndex
+      finished' = (<=) <$> length . levels <*> index'
+  in Game <$>
+      levels <*>
+      pure Nothing <*>
+      index' <*>
+      pure True <*>
+      finished' <*>
+      pure False
+
+handleRetry :: Game -> Game
+handleRetry = 
+  let lvls = mergeLevel <$> (!!) gameLevels . levelIndex <*> id
+  in Game <$>
+      lvls <*>
+      pure Nothing <*>
+      levelIndex <*>
+      started <*>
+      finished <*>
+      paused
+
+processGameLevelEvent :: Event -> Game -> Game
+processGameLevelEvent e game =
+  let l = currentLevel game
+      (l', _) = processEvent e l
   in if acceptingInput l
-      then Game (l':ls) ms v'
-     else Game (l:ls) ms v
+      then updateGameLevels l' game
+     else game
 
--- TODO: This decides what Screen is being shown, updated, and handling events
+updateGameLevels :: Level -> Game -> Game
+updateGameLevels l = 
+  let m' = if endScreen l then Just . makeEndLevelMenu else pure Nothing
+  in Game <$>
+      mergeLevel l <*>
+      m' <*>
+      levelIndex <*>
+      started <*>
+      finished <*>
+      paused
+
+mergeLevel :: Level -> Game -> [Level]
+mergeLevel l' game = snd . foldr go (n, [])  . levels $ game
+  where n = (+(-1)) . length . levels $ game
+        go l (i, acc) = if i == levelIndex game
+                          then (i - 1, l' : acc)
+                        else (i - 1, l : acc)
+
+makeEndLevelMenu :: Game -> Menu
+makeEndLevelMenu game = 
+  let title' = "Level " ++ (show . (+1) . levelIndex $ game) ++ " Complete"
+      bg' = Color (makeColorI 128 128 128 96) . levelP . currentLevel $ game
+  in Menu title' "" bg' [optionReplay, optionNext]
+
 currentLevel :: Game -> Level
-currentLevel = head . levels
+currentLevel = (!!) <$> levels <*> levelIndex
 
 currentMenu :: Game -> Menu
-currentMenu = head . menus
+currentMenu = fromJust . menu
+
+isShowingMenu :: Game -> Bool
+isShowingMenu = not . isNothing . menu
 
 mainWindow :: Display
 mainWindow = InWindow "Sneaker" (600, 600) (100, 100)
@@ -49,27 +120,40 @@ stepsPerSecond :: Int
 stepsPerSecond = 100
 
 initGame :: Game
-initGame = Game [testLevel] [titleScreen] MenuScreen
+initGame = Game gameLevels (Just titleScreen) (-1) False False False
 
 showGame :: Game -> Picture
-showGame game = case viewing game of
-                  MenuScreen  -> display . currentMenu $ game
-                  LevelScreen -> display . currentLevel $ game
+showGame game = if isShowingMenu game
+                  then display . currentMenu $ game
+                else display . currentLevel $ game
 
 -- Float will be a constant duration equal to 1/stepsPerSecond
 updateStep :: Float -> Game -> Game
-updateStep step game = case viewing game of
-                        MenuScreen -> stepGameMenu step game 
-                        LevelScreen -> stepGameLevel step game
+updateStep step game = if isShowingMenu game
+                        then stepGameMenu step game
+                       else stepGameLevel step game
 
 stepGameMenu :: Float -> Game -> Game
-stepGameMenu _ (Game ls [] v) = Game ls [] v
-stepGameMenu step (Game ls (m:ms) v) = 
-  Game ls (simStep step m : ms) v
+stepGameMenu step = 
+  let menu' = pure . simStep step . fromJust . menu
+  in Game <$>
+      levels <*>
+      menu' <*>
+      levelIndex <*>
+      started <*>
+      finished <*>
+      paused 
 
 stepGameLevel :: Float -> Game -> Game
-stepGameLevel step (Game (l:ls) ms v) =
-  Game (simStep step l : ls) ms v
+stepGameLevel step = 
+  let levels' = mergeLevel <$> simStep step . currentLevel <*> id
+  in Game <$>
+      levels' <*>
+      menu <*>
+      levelIndex <*>
+      started <*>
+      finished <*>
+      paused 
 
 playGame :: IO ()
 --main = runLevel hero jerks (Go Nothing)
@@ -79,10 +163,10 @@ playGame = play
             stepsPerSecond
             initGame
             showGame
-            updateGame
+            handleGameEvent
             updateStep
 
--- ! Main Loop !
+-- ! (Old) Main Loop !
 runLevel :: Actor -> [Actor] -> Move -> IO ()
 runLevel h vs move = 
   let grid = updateGrid cleanGrid $ h : vs

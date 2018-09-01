@@ -7,28 +7,22 @@ data Menu =
   Menu { title :: String
        , info :: String
        , bg :: Picture
-       , options :: [Option]
-       , nextView :: ViewTarget }
+       , options :: [Option] }
        deriving Show
 
-data ViewTarget =
-    MenuScreen
-  | LevelScreen
-  deriving (Eq, Show)
-
--- TODO: Needs something like an Action
 data Option = 
-  Option { label :: String -- option text
-         , anchor :: (Float, Float) -- (x,y) coord ... upper or lower left?
-         , dims :: (Float, Float) -- (height, width)
+  Option { label :: String          -- option text
+         , anchor :: (Float, Float) -- (x,y) lower left
+         , dims :: (Float, Float)   -- (width, height)
          , action :: MenuAction 
          , selected :: Bool }
          deriving (Eq, Show)
 
 data MenuAction =
     None
-  | NextScreen
+  | NextLevel
   | Replay
+  | StartGame
   deriving (Eq, Show)
 
 instance Screen Menu where
@@ -39,17 +33,25 @@ instance Screen Menu where
   acceptingInput = not . endScreen
 
 -- ** Constants ** --
--- TODO: figure out how to show a title screen
 titleScreen :: Menu
-titleScreen = Menu "" "" titleBg [optionContinue] LevelScreen
+titleScreen = Menu "" "" titleBg [optionStart] 
 
 titleBg :: Picture
 titleBg = Translate (-200) (-200) 
             $ Scale 0.5 0.5 
             $ Pictures [Color (greyN 0.4) (ThickCircle 200.0 400.0), Text "Sneaker"]
 
-optionContinue :: Option
-optionContinue = Option "Start" (100, 100) (100, 40) NextScreen False
+optionSize :: (Float, Float)
+optionSize = (100, 40)
+
+optionStart :: Option
+optionStart = Option "Start" (100, 100) optionSize StartGame False
+
+optionNext :: Option
+optionNext = Option "Next" (100, (-200)) optionSize NextLevel False
+
+optionReplay :: Option
+optionReplay = Option "Retry" ((-100), (-200)) optionSize Replay False
 -- **
 
 showMenu :: Menu -> Picture
@@ -64,7 +66,6 @@ showTitle = Translate (-200) (280) . Scale 0.2 0.2 . Text
 showInfo :: String -> Picture
 showInfo = Translate (-200) (180) . Scale 0.1 0.1 . Text
 
--- TODO: calculate translation coordinates for each Option
 showOptions :: [Option] -> Picture
 showOptions = Pictures . fmap showOption
 
@@ -89,8 +90,7 @@ updateMenu pt =
     title <*> 
     info <*>
     bg <*>
-    checkSelected pt . options <*>
-    nextView
+    checkSelected pt . options 
 
 checkSelected :: (Float, Float) -> [Option] -> [Option]
 checkSelected pt = foldr go []
@@ -110,12 +110,11 @@ optionClicked (x, y) (Option _ a ds _ _) =
 endMenu :: Menu -> Bool
 endMenu = any selected . options
 
+getSelectedAction :: Menu -> MenuAction
+getSelectedAction = action . head . filter selected . options
+
 -- Use for animation?
 stepMenu :: Float -> Menu -> Menu
 stepMenu _ menu = menu
-
-updateViewing :: Menu -> ViewTarget
-updateViewing menu = if endScreen menu 
-                      then nextView menu 
-                     else MenuScreen
+--stepMenu = flip const
 
