@@ -11,6 +11,7 @@ data Level = Level
   , player :: Actor
   , npcs :: [Actor] 
   , playerTurn :: Bool }
+--  , animating :: Bool }
 --  , hud :: String }
   deriving Show
 
@@ -23,11 +24,11 @@ instance Screen Level where
 
 -- ** Constants **
 hero :: Actor
-hero = Actor Hero 1 [] East (Position 0 0)
+hero = Actor Hero 1 [] East (Position 0 0) 0 0
 
 jerks :: [Actor]
 jerks = 
-  [ Actor Walker 1 [South, South, North, North] South (Position 0 2) ]
+  [ Actor Walker 1 [South, South, North, North] South (Position 0 2) 0 0 ]
 
 regularNode :: [Direction] -> NodeInfo Actor
 regularNode ds = NodeInfo Regular ds []
@@ -65,11 +66,15 @@ grid2 = Grid $ [ [ Nothing
                  , Nothing ] ]
 
 heroAt :: Int -> Int -> Actor
-heroAt r c = Actor Hero 1 [] East (Position r c)
+heroAt r c = Actor Hero 1 [] East (Position r c) 0 0
 
 npcsL2 :: [Actor]
-npcsL2 = [ Actor Walker 1 [East, East, East, West, West, West] East (Position 2 0)
-         , Actor Guard 1 [] East (Position 1 0) ]
+npcsL2 = 
+  [ Actor 
+      Walker 1 
+      [East, East, East, West, West, West] 
+      East (Position 2 0) 0 0
+  , Actor Guard 1 [] East (Position 1 0) 0 0 ]
 
 level2 :: Level
 level2 = 
@@ -98,6 +103,12 @@ handleLevelEvent e l = case eventToMove e of
 endLevel :: Level -> Bool
 endLevel = r . getGrid
   where r = (||) <$> isHeroAtEnd <*> isHeroCaught
+
+animating :: Level -> Bool
+animating = 
+  let f = (<) <$> pure 0 <*> stepsLeft
+      actors = (:) <$> player <*> npcs
+  in any f . actors 
 -- **
 
 -- ** Updaters ** --
@@ -105,23 +116,49 @@ updateLevelPlayer :: Move -> Level -> (Level, Bool)
 updateLevelPlayer move lvl = 
   let ok = canMove move (getNodeInfo (getGrid lvl) (position (player lvl)))
       grid' = updateGrid . clearGrid . getGrid $ lvl
-      player' = movePlayer (player lvl) move
+      p' = movePlayer gridSpacing (player lvl) move
       ns = npcs lvl
-      lvl' = Level (grid' (player': ns)) player' ns False
+      lvl' = Level (grid' (p': ns)) p' ns False
   in if ok then (lvl', True) else (lvl, False)
 
 updateLevelNPCs :: Level -> Level
-updateLevelNPCs (Level grid p ns _) =
-  Level (extractAndUpdate grid) p (updateNPCs ns) True
+updateLevelNPCs =
+  let npcs' = updateNPCs <$> pure gridSpacing <*> player <*> npcs
+      actors = (:) <$> player <*> npcs'
+      grid' = updateGrid <$> clearGrid . getGrid <*> actors
+  in Level <$>
+      grid' <*>
+      player <*>
+      npcs' <*>
+      pure True
 
 stepLevel :: Float -> Level -> Level
-stepLevel _ level = if acceptingInput level
-                      then level
-                    else updateLevelNPCs level
+stepLevel _ level =
+  let checkForUpdate = if acceptingInput level 
+                        then level 
+                       else updateLevelNPCs level
+  in if animating level 
+     then stepLevelActors level
+   else checkForUpdate
+
+stepLevelActors :: Level -> Level
+stepLevelActors = 
+  let npcs' = stepActors gridSpacing maxSteps . npcs
+      player' = stepActor gridSpacing  maxSteps . player
+      actors = (:) <$> player' <*> npcs'
+      grid' = updateGrid <$> clearGrid . getGrid <*> actors
+  in Level <$> grid' <*> player' <*> npcs' <*> playerTurn
 
 -- ** Picture makers ** --
 levelP :: Level -> Picture
 levelP = gridP . getGrid
+--levelP lvl = Pictures $ 
+--              [ gridP . getGrid
+--              , Scale 0.3 0.3 . Translate 0 (-250) . Text . show . animating 
+--              , Scale 0.3 0.3 . Translate 0 (-350) . Text . show . 
+--                  stepsLeft . flip (!!) 0 . npcs ] <*> 
+--                pure lvl
+
 -- **
 
 -- TODO: move to something like a Utilities or Helpers module

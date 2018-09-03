@@ -116,8 +116,8 @@ isShowingMenu = not . isNothing . menu
 mainWindow :: Display
 mainWindow = InWindow "Sneaker" (600, 600) (100, 100)
 
-stepsPerSecond :: Int
-stepsPerSecond = 100
+steps :: Int
+steps = 100
 
 initGame :: Game
 initGame = Game gameLevels (Just titleScreen) (-1) False False False
@@ -127,7 +127,7 @@ showGame game = if isShowingMenu game
                   then display . currentMenu $ game
                 else display . currentLevel $ game
 
--- Float will be a constant duration equal to 1/stepsPerSecond
+-- Float will be a constant duration equal to 1/steps 
 updateStep :: Float -> Game -> Game
 updateStep step game = if isShowingMenu game
                         then stepGameMenu step game
@@ -155,12 +155,18 @@ stepGameLevel step =
       finished <*>
       paused 
 
+playGame' :: IO ()
+playGame' = play mainWindow white 100 0.0
+            (\w -> Scale 0.2 0.2 $ Text . show $ w)
+            (\e w -> w)
+            (\f w -> w + f)
+
 playGame :: IO ()
 --main = runLevel hero jerks (Go Nothing)
 playGame = play
             mainWindow
             white
-            stepsPerSecond
+            steps
             initGame
             showGame
             handleGameEvent
@@ -178,9 +184,9 @@ runLevel h vs move =
      else print "Choose a direction" >>
           getHeroMove >>= 
             \newMove -> 
-              let h' = movePlayer h newMove
+              let h' = movePlayer 100 h newMove
               in if canMove newMove . getNodeInfo grid . position $ h
-                  then runLevel h' (updateNPCs vs) newMove
+                  then runLevel h' (updateNPCs 100 h' vs) newMove
                  else print BadMove >>
                       runLevel h vs move
 

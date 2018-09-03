@@ -85,10 +85,16 @@ nodeTypeP t =
        Distractor -> Color black c
        Lootable -> Color black c
 
+-- TODO: Use getPlacements here somehow. Maybe once an Actor is at a
+--      node boundary we interpolate over a line segment between
+--      Actor and the appropriate result point from getPlacements.
 actorsP :: [Actor] -> Picture
-actorsP actors = Pictures . fmap f . zip actors . getPlacements . length $ actors
-  where f (actor, (x,y)) = Translate x y $ Pictures [ (actorFacingP . facing $ actor)
-                                                    , (actorTypeP . actorType $ actor) ]
+actorsP actors = 
+  let ts = getTranslations actors
+      f (a, (x,y)) = Translate x y $ 
+                      Pictures [ actorFacingP . facing $ a
+                               , actorTypeP . actorType $ a ]
+  in Pictures . fmap f . zip actors $ ts
 
 actorTypeP :: ActorType -> Picture
 actorTypeP t = 
@@ -132,11 +138,7 @@ updateNode node [] = node
 updateNode (Just (NodeInfo t ps s)) actors = Just . NodeInfo t ps $ addActors
   where addActors = foldr (:) s actors
 
-extractAndUpdate :: Grid (Maybe (NodeInfo Actor)) -> Grid (Maybe (NodeInfo Actor))
-extractAndUpdate grid =
-  let (actors, grid') = extractNPCs grid
-  in updateGrid grid' . updateNPCs $ actors
-
+-- Clears npcs from Grid, leaving just Hero in place
 extractNPCs :: Grid (Maybe (NodeInfo Actor)) -> ([Actor], Grid (Maybe (NodeInfo Actor)))
 extractNPCs (Grid []) = ([], Grid [])
 extractNPCs (Grid rows) = (getNPCs rows, Grid . fmap f $ rows)
