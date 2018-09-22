@@ -101,7 +101,7 @@ handleLevelEvent e l = case eventToMove e of
 
 -- ** Query ** --
 endLevel :: Level -> Bool
-endLevel = r . getGrid
+endLevel = (&&) <$> not . animating <*> r . getGrid
   where r = (||) <$> isHeroAtEnd <*> isHeroCaught
 
 animating :: Level -> Bool

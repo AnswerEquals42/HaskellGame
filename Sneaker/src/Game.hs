@@ -145,15 +145,17 @@ stepGameMenu step =
       paused 
 
 stepGameLevel :: Float -> Game -> Game
-stepGameLevel step = 
-  let levels' = mergeLevel <$> simStep step . currentLevel <*> id
+stepGameLevel step game = 
+  let l = currentLevel game
+      m' = if endScreen l then Just . makeEndLevelMenu else pure Nothing
+      levels' = mergeLevel <$> simStep step . currentLevel <*> id
   in Game <$>
       levels' <*>
-      menu <*>
+      m' <*>
       levelIndex <*>
       started <*>
       finished <*>
-      paused 
+      paused $ game
 
 playGame' :: IO ()
 playGame' = play mainWindow white 100 0.0
