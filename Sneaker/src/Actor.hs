@@ -154,6 +154,34 @@ walkerT ds aa =
 
 -- **
 
+-- ** Picture makers ** --
+-- TODO: Use getPlacements here somehow. Maybe once an Actor is at a
+--      node boundary we interpolate over a line segment between
+--      Actor and the appropriate result point from getPlacements.
+actorsP :: [Actor] -> Picture
+actorsP actors =
+  let ts = getTransformations actors
+      f (a, (x, y, r)) = Translate x y $
+                          Pictures [ actorFacingP r
+                                   , actorTypeP . actorType $ a ]
+  in Pictures . fmap f . zip actors $ ts
+ 
+actorTypeP :: ActorType -> Picture
+actorTypeP t = 
+  let c = ThickCircle 4 8
+      outline = Color black $ Circle 8
+  in case t of
+      Hero -> Pictures [Color (dark green) c, outline]
+      Guard -> Pictures [Color blue c, outline]
+      Walker -> Pictures [Color yellow c, outline]
+      Projectile -> Pictures [Color magenta c, outline]
+
+actorFacingP :: Float -> Picture
+actorFacingP r = 
+  let t = Translate 0 8 $ Polygon [((-4), 0), (0, 8), (4, 0)]
+  in Rotate r t
+-- **
+
 -- ** Helpers
 currentFrame :: ActorAnim -> Direction -> (Float, Float)
 currentFrame aa d = 

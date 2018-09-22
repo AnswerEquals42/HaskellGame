@@ -51,28 +51,42 @@ gridP (Grid rows) =
       rY = take height [0, (-gridSpacing)..]
       x = negate $ 0.5 * gridSpacing * (fromIntegral height)
       y = 0.5 * gridSpacing * (fromIntegral . length . head $ rows)
-  in Translate x y $ Pictures $ zipWith rowP rY rows
-  
-rowP :: Float -> [Maybe (NodeInfo Actor)] -> Picture
+  in Translate x y . Pictures . mergePictures . zipWith rowP rY $ rows
+
+-- Output is row Picture, actors Picture
+rowP :: Float -> [Maybe (NodeInfo Actor)] -> (Picture, Picture)
 rowP y nodes = 
   let cX = take (length nodes) [0, gridSpacing..]
-      f  = (\x -> Translate x y . nodeP)
-  in Pictures $ zipWith f cX nodes
+      f  = (\x n -> 
+              let (n', a) = nodeP n
+              in (Translate x y $ n', Translate x y $ a))
+      zs = zipWith f cX nodes
+      go = (\(x, y) acc -> (x : fst acc, y : snd acc))
+  in (,) <$> Pictures . fst <*> Pictures . snd $ foldr go ([], []) zs
 
-nodeP :: Maybe (NodeInfo Actor) -> Picture
-nodeP Nothing = Blank
-nodeP (Just node) = Pictures $ 
-                      [ pathsP . paths
-                      , nodeTypeP . nodeType
-                      , actorsP . nodeState ] <*> pure node
+-- Output is node Picture, actors Picture
+nodeP :: Maybe (NodeInfo Actor) -> (Picture, Picture)
+nodeP Nothing = (Blank, Blank)
+nodeP (Just node) = (ns, as)
+  where ns = Pictures [ pathsP . paths $ node
+                      , nodeTypeP . nodeType $ node ]
+        as = actorsP . nodeState $ node
+
+mergePictures :: [(Picture, Picture)] -> [Picture]
+mergePictures ps = 
+  let (fs, ss) = foldr go ([], []) ps
+      go = (\(x, y) acc -> (x : fst acc, y : snd acc))
+  in fs ++ ss
 
 pathsP :: [Direction] -> Picture
-pathsP ds = Pictures $ foldr f [] ds
-  where f d ps = case d of
-                  North -> Polygon [(1, 0), (1, 50), ((-1), 50), ((-1), 0)] : ps
-                  East  -> Polygon [(0, (-1)), (50, (-1)), (50, 1), (0, 1)] : ps
-                  South -> Polygon [((-1), 0), ((-1), (-50)), (1, (-50)), (1, 0)] : ps
-                  West  -> Polygon [(0, 1), ((-50), 1), ((-50), (-1)), (0, (-1))] : ps
+pathsP ds =
+  let m = 0.5 * gridSpacing
+      f d ps = case d of
+                North -> Polygon [(1, 0), (1, m), ((-1), m), ((-1), 0)] : ps
+                East  -> Polygon [(0, (-1)), (m, (-1)), (m, 1), (0, 1)] : ps
+                South -> Polygon [((-1), 0), ((-1), (-m)), (1, (-m)), (1, 0)] : ps
+                West  -> Polygon [(0, 1), ((-m), 1), ((-m), (-1)), (0, (-1))] : ps
+  in Pictures $ foldr f [] ds
 
 nodeTypeP :: NodeType -> Picture
 nodeTypeP t = 
@@ -84,32 +98,6 @@ nodeTypeP t =
        Concealer -> Color black c
        Distractor -> Color black c
        Lootable -> Color black c
-
--- TODO: Use getPlacements here somehow. Maybe once an Actor is at a
---      node boundary we interpolate over a line segment between
---      Actor and the appropriate result point from getPlacements.
-actorsP :: [Actor] -> Picture
-actorsP actors =
-  let ts = getTransformations actors
-      f (a, (x, y, r)) = Translate x y $
-                          Pictures [ actorFacingP r
-                                   , actorTypeP . actorType $ a ]
-  in Pictures . fmap f . zip actors $ ts
- 
-actorTypeP :: ActorType -> Picture
-actorTypeP t = 
-  let c = ThickCircle 4 8
-      outline = Color black $ Circle 8
-  in case t of
-      Hero -> Pictures [Color (dark green) c, outline]
-      Guard -> Pictures [Color blue c, outline]
-      Walker -> Pictures [Color yellow c, outline]
-      Projectile -> Pictures [Color magenta c, outline]
-
-actorFacingP :: Float -> Picture
-actorFacingP r = 
-  let t = Translate 0 8 $ Polygon [((-4), 0), (0, 8), (4, 0)]
-  in Rotate r t
 -- **
 
 -- ** Update Grid with Actors
