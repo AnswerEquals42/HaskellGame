@@ -49,7 +49,7 @@ gridP (Grid []) = Text "Empty Grid"
 gridP (Grid rows) = 
   let height = length rows
       rY = take height [0, (-gridSpacing)..]
-      x = negate $ 0.5 * gridSpacing * (fromIntegral height)
+      x = negate $ 0.4 * gridSpacing * (fromIntegral height)
       y = 0.5 * gridSpacing * (fromIntegral . length . head $ rows)
   in Translate x y . Pictures . mergePictures . zipWith rowP rY $ rows
 

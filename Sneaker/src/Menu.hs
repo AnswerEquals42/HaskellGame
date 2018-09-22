@@ -61,7 +61,7 @@ showMenu menu = Pictures [ bg menu
                          , showOptions (options menu) ]
 
 showTitle :: String -> Picture
-showTitle = Translate (-200) (280) . Scale 0.2 0.2 . Text
+showTitle = Translate (-200) (250) . Scale 0.2 0.2 . Text
 
 showInfo :: String -> Picture
 showInfo = Translate (-200) (180) . Scale 0.1 0.1 . Text

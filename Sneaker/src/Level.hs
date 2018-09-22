@@ -58,11 +58,11 @@ grid2 = Grid $ [ [ Nothing
                  , Just $ regularNode [North, South] ]
                , [ Just $ regularNode [North, East, South] 
                  , Just $ regularNode [North, East, South, West] 
-                 , Just $ regularNode [North, East, West] 
+                 , Just $ regularNode [North, East, South, West] 
                  , Just $ regularNode [North, West] ]
                , [ Just $ regularNode [North, East] 
-                 , Just $ NodeInfo End [North, West] []
-                 , Nothing
+                 , Just $ NodeInfo End [North, East, West] []
+                 , Just $ regularNode [North, West]
                  , Nothing ] ]
 
 heroAt :: Int -> Int -> Actor
