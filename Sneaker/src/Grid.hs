@@ -89,13 +89,13 @@ nodeTypeP t =
 --      node boundary we interpolate over a line segment between
 --      Actor and the appropriate result point from getPlacements.
 actorsP :: [Actor] -> Picture
-actorsP actors = 
-  let ts = getTranslations actors
-      f (a, (x,y)) = Translate x y $ 
-                      Pictures [ actorFacingP . facing $ a
-                               , actorTypeP . actorType $ a ]
+actorsP actors =
+  let ts = getTransformations actors
+      f (a, (x, y, r)) = Translate x y $
+                          Pictures [ actorFacingP r
+                                   , actorTypeP . actorType $ a ]
   in Pictures . fmap f . zip actors $ ts
-
+ 
 actorTypeP :: ActorType -> Picture
 actorTypeP t = 
   let c = ThickCircle 4 8
@@ -106,14 +106,10 @@ actorTypeP t =
       Walker -> Pictures [Color yellow c, outline]
       Projectile -> Pictures [Color magenta c, outline]
 
-actorFacingP :: Direction -> Picture
-actorFacingP d = 
+actorFacingP :: Float -> Picture
+actorFacingP r = 
   let t = Translate 0 8 $ Polygon [((-4), 0), (0, 8), (4, 0)]
-  in case d of
-      North -> t
-      East  -> Rotate 90 t
-      South -> Rotate 180 t
-      West  -> Rotate 270 t
+  in Rotate r t
 -- **
 
 -- ** Update Grid with Actors

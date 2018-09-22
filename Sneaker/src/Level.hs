@@ -24,11 +24,11 @@ instance Screen Level where
 
 -- ** Constants **
 hero :: Actor
-hero = Actor Hero 1 [] East (Position 0 0) 0 0
+hero = Actor Hero 1 [] East (Position 0 0) (ActorAnim [])
 
 jerks :: [Actor]
 jerks = 
-  [ Actor Walker 1 [South, South, North, North] South (Position 0 2) 0 0 ]
+  [ Actor Walker 1 [South, South, North, North] South (Position 0 2) (ActorAnim []) ]
 
 regularNode :: [Direction] -> NodeInfo Actor
 regularNode ds = NodeInfo Regular ds []
@@ -66,15 +66,15 @@ grid2 = Grid $ [ [ Nothing
                  , Nothing ] ]
 
 heroAt :: Int -> Int -> Actor
-heroAt r c = Actor Hero 1 [] East (Position r c) 0 0
+heroAt r c = Actor Hero 1 [] East (Position r c) (ActorAnim [])
 
 npcsL2 :: [Actor]
 npcsL2 = 
   [ Actor 
       Walker 1 
       [East, East, East, West, West, West] 
-      East (Position 2 0) 0 0
-  , Actor Guard 1 [] East (Position 1 0) 0 0 ]
+      East (Position 2 0) (ActorAnim [])
+  , Actor Guard 1 [] East (Position 1 0) (ActorAnim []) ]
 
 level2 :: Level
 level2 = 
@@ -106,7 +106,7 @@ endLevel = r . getGrid
 
 animating :: Level -> Bool
 animating = 
-  let f = (<) <$> pure 0 <*> stepsLeft
+  let f = not . null . frames . anim
       actors = (:) <$> player <*> npcs
   in any f . actors 
 -- **
@@ -126,11 +126,7 @@ updateLevelNPCs =
   let npcs' = updateNPCs <$> pure gridSpacing <*> player <*> npcs
       actors = (:) <$> player <*> npcs'
       grid' = updateGrid <$> clearGrid . getGrid <*> actors
-  in Level <$>
-      grid' <*>
-      player <*>
-      npcs' <*>
-      pure True
+  in Level <$> grid' <*> player <*> npcs' <*> pure True
 
 stepLevel :: Float -> Level -> Level
 stepLevel _ level =
@@ -138,13 +134,13 @@ stepLevel _ level =
                         then level 
                        else updateLevelNPCs level
   in if animating level 
-     then stepLevelActors level
-   else checkForUpdate
+      then stepLevelActors level
+     else checkForUpdate
 
 stepLevelActors :: Level -> Level
 stepLevelActors = 
-  let npcs' = stepActors gridSpacing maxSteps . npcs
-      player' = stepActor gridSpacing  maxSteps . player
+  let npcs' = stepActors . npcs
+      player' = stepActor . player
       actors = (:) <$> player' <*> npcs'
       grid' = updateGrid <$> clearGrid . getGrid <*> actors
   in Level <$> grid' <*> player' <*> npcs' <*> playerTurn

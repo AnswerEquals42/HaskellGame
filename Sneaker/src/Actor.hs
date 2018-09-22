@@ -12,9 +12,11 @@ data Actor = Actor
     , dirs :: [Direction] 
     , facing :: Facing
     , position :: Position
-    , stepsLeft :: Int
-    , offset :: Float }
+    , anim :: ActorAnim }
     deriving (Eq, Show)
+
+-- [(Magnitude of Translation, Rotation)]
+data ActorAnim = ActorAnim { frames :: [(Float, Float)] } deriving (Eq, Show)
 
 data ActorType =
     Hero
@@ -50,7 +52,10 @@ instance Show InputError where
 
 -- ** Constants ** --
 maxSteps :: Num a => a
-maxSteps = 25
+maxSteps = 30
+
+halfSteps :: Num a => a 
+halfSteps = 15
 -- **
 
 -- ** Updaters
@@ -63,8 +68,7 @@ movePlayer spacing actor (Go (Just d)) =
     dirs <*> 
     pure d <*> 
     flip updatePosition (pure d) . position <*>
-    pure maxSteps <*>
-    pure spacing $ actor
+    mkActorAnim spacing d $ actor
 
 updateNPCs :: Float -> Actor -> [Actor] -> [Actor]
 updateNPCs spacing h = fmap (updateNPC spacing h)
@@ -84,17 +88,16 @@ updateGuard spacing h n =
             dirs <*>
             facing <*>
             position' <*>
-            pure maxSteps <*>
-            pure spacing $ n
+            (mkActorAnim spacing <$> facing <*> id) $ n
   in if (position h) == (position' n) then n' else n
 
 updateWalker :: Float -> Actor -> Actor
-updateWalker _ (Actor t i [] f p s o) = Actor t i [] f p s o
-updateWalker spacing (Actor t i (d:ds) f p _ o) = 
+updateWalker _ (Actor t i [] f p a) = Actor t i [] f p a
+updateWalker spacing (Actor t i (d:ds) f p _) = 
   let p' = updatePosition p . pure $ d
       ds' = foldr (:) [d] ds
       f' = head ds'
-  in Actor t i ds' f' p' maxSteps spacing
+  in Actor t i ds' f' p' (mkWalkerAnim spacing d f')
 
 updatePosition :: Position -> Maybe Direction -> Position
 updatePosition p Nothing = p
@@ -105,48 +108,60 @@ updatePosition (Position r c) (Just d) =
     South -> Position (r + 1) c
     West  -> Position r (c - 1)
 
-stepActors :: Float -> Float -> [Actor] -> [Actor]
-stepActors sp ms = fmap (stepActor sp ms)
+stepActors :: [Actor] -> [Actor]
+stepActors = fmap stepActor
 
-stepActor :: Float -> Float -> Actor -> Actor
-stepActor sp ms = 
-  let steps' a = if stepsLeft a > 0
-                  then (+(-1)) . stepsLeft $ a
-                 else 0
-      offset' r = (fromIntegral r) * (sp / ms)
-  in Actor <$> 
-      actorType <*> 
-      actorId <*> 
-      dirs <*> 
-      facing <*> 
-      position <*>
-      steps' <*>
-      offset' . steps'
+stepActor :: Actor -> Actor
+stepActor = Actor <$> 
+              actorType <*>
+              actorId <*>
+              dirs <*>
+              facing <*>
+              position <*>
+              nextFrame . anim 
 
-getTranslations :: [Actor] -> [(Float, Float)]
-getTranslations = fmap f 
+nextFrame :: ActorAnim -> ActorAnim
+nextFrame aa = ActorAnim frames'
+  where frames' = if null . frames $ aa then []
+                  else tail . frames $ aa
+
+-- (x, y, r)
+getTransformations :: [Actor] -> [(Float, Float, Float)]
+getTransformations = fmap f
   where f actor = case actorType actor of
-                    Hero   -> heroT <$> facing <*> offset $ actor
-                    Guard  -> heroT <$> facing <*> offset $ actor
-                    Walker -> walkerT <$> dirs <*> offset $ actor
-                    _      -> (0, 0)
+                    Hero   -> actorT <$> facing <*> anim $ actor
+                    Guard  -> actorT <$> facing <*> anim $ actor
+                    Walker -> walkerT <$> dirs <*> anim $ actor
+                    _      -> (0, 0, 0)
 
-heroT :: Direction -> Float -> (Float, Float)
-heroT d m = case d of
-              North -> (0, -m)
-              East  -> (-m, 0)
-              South -> (0, m)
-              West  -> (m, 0)
+actorT :: Direction -> ActorAnim -> (Float, Float, Float)
+actorT d aa = 
+  let (m, r) = currentFrame aa d
+  in case d of
+      North -> (0, -m, r)
+      East  -> (-m, 0, r)
+      South -> (0, m, r)
+      West  -> (m, 0, r)
 
-walkerT :: [Direction] -> Float -> (Float, Float)
-walkerT ds m = case last ds of
-                North -> (0, -m)
-                East  -> (-m, 0)
-                South -> (0, m)
-                West  -> (m, 0)
+walkerT :: [Direction] -> ActorAnim -> (Float, Float, Float)
+walkerT ds aa = 
+  let (m, r) = currentFrame aa (head ds)
+  in case last ds of
+      North -> (0, -m, r)
+      East  -> (-m, 0, r)
+      South -> (0, m, r)
+      West  -> (m, 0, r)
+
 -- **
 
 -- ** Helpers
+currentFrame :: ActorAnim -> Direction -> (Float, Float)
+currentFrame aa d = 
+  let r = dirToAngle d 
+  in if null . frames $ aa
+      then (0, r)
+     else head . frames $ aa
+
 keyToMove :: Key -> KeyState -> Move
 keyToMove (SpecialKey k) Up = case k of
                                 KeyUp    -> Go (Just North)
@@ -163,6 +178,79 @@ filterRowByIndex i = filter f
 filterColByIndex :: Int -> [Actor] -> [Actor]
 filterColByIndex i = filter f
   where f a = (column . position $ a) == i
+
+mkActorAnim :: Float -> Direction -> Actor -> ActorAnim
+mkActorAnim spacing dir actor = 
+  let tSteps = transSteps spacing
+      rSteps = rotSteps (facing actor) dir
+      tStep = head tSteps
+      rStep = last rSteps
+      ts = zip tSteps (replicate maxSteps rStep)
+      rs = zip (replicate maxSteps tStep) rSteps
+  in ActorAnim $ rs ++ ts
+
+mkWalkerAnim :: Float -> Direction -> Direction -> ActorAnim
+mkWalkerAnim spacing from to = 
+  let tSteps = transSteps spacing
+      rSteps = rotSteps from to
+      tStep = last tSteps
+      rStep = head rSteps
+      ts = zip tSteps (replicate maxSteps rStep)
+      rs = zip (replicate maxSteps tStep) rSteps
+  in ActorAnim $ ts ++ rs
+
+-- maxSteps CANNOT be 0 ... that's probably fine, but maybe protect against that?
+transSteps :: Float -> [Float]
+transSteps dist = 
+  let inc = dist / (fromIntegral maxSteps)
+  in fmap (*inc) [maxSteps, maxSteps - 1 .. 0]
+
+dirToAngle :: Direction -> Float
+dirToAngle d = case d of
+                North -> 0.0
+                East  -> 90.0
+                South -> 180.0
+                West  -> 270.0
+
+quarterInc :: Float
+quarterInc = 90.0 / (fromIntegral halfSteps)
+
+halfInc :: Float
+halfInc = 180.0 / (fromIntegral maxSteps)
+
+incSteps :: (Num a, Enum a) => [a]
+incSteps = [0 .. maxSteps]
+
+incHSteps :: (Num a, Enum a) => [a]
+incHSteps = [0 .. halfSteps]
+
+decSteps :: (Num a, Enum a) => [a]
+decSteps = [maxSteps, maxSteps - 1 .. 0]
+
+decHSteps :: (Num a, Enum a) => [a]
+decHSteps = [halfSteps, halfSteps - 1 .. 0]
+
+-- Resorting to brute force
+rotSteps :: Direction -> Direction -> [Float]
+rotSteps North North = replicate maxSteps . dirToAngle $ North
+rotSteps North East  = fmap (*quarterInc) incHSteps
+rotSteps North South = fmap (*halfInc) incSteps
+rotSteps North West  = fmap ((+270.0) . (*quarterInc)) decHSteps
+rotSteps East North  = fmap ((+0) . (*quarterInc)) decHSteps
+rotSteps East East   = replicate maxSteps . dirToAngle $ East
+rotSteps East South  = fmap ((+90) . (*quarterInc)) incHSteps
+rotSteps East West   = fmap ((+90) . (*halfInc)) incSteps
+rotSteps South North = fmap ((+180) . (*halfInc)) incSteps
+rotSteps South East  = fmap ((+90) . (*quarterInc)) decHSteps
+rotSteps South South = replicate maxSteps . dirToAngle $ South
+rotSteps South West  = fmap ((+180) . (*quarterInc)) incHSteps
+rotSteps West North  = fmap ((+270) . (*quarterInc)) incHSteps
+rotSteps West East   = fmap ((+(-90)) . (*halfInc)) incSteps
+rotSteps West South  = fmap ((+180) . (*quarterInc)) decHSteps
+rotSteps West West   = replicate maxSteps . dirToAngle $ West
+
+mkRotSteps :: Float -> Float -> [Float]
+mkRotSteps sweep offset = undefined
 -- **
 
 -- Keep for debugging maybe?
