@@ -23,6 +23,7 @@ data MenuAction =
   | NextLevel
   | Replay
   | StartGame
+  | Quit
   deriving (Eq, Show)
 
 instance Screen Menu where
@@ -52,6 +53,9 @@ optionNext = Option "Next" (100, (-200)) optionSize NextLevel False
 
 optionReplay :: Option
 optionReplay = Option "Retry" ((-100), (-200)) optionSize Replay False
+
+optionQuit :: Option
+optionQuit = Option "Quit" (100, (-200)) optionSize Quit False
 -- **
 
 showMenu :: Menu -> Picture

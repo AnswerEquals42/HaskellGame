@@ -37,7 +37,8 @@ updateGameMenu menu game =
     then case getSelectedAction menu of
           StartGame -> handleStart game
           NextLevel -> handleNextLevel game
-          Replay -> handleRetry game
+          Replay    -> handleRetry game
+          Quit      -> handleQuit game
   else game
 
 handleStart :: Game -> Game
@@ -72,6 +73,9 @@ handleRetry =
       finished <*>
       paused
 
+handleQuit :: Game -> Game
+handleQuit = const initGame
+
 processGameLevelEvent :: Event -> Game -> Game
 processGameLevelEvent e game =
   let l = currentLevel game
@@ -100,9 +104,13 @@ mergeLevel l' game = snd . foldr go (n, [])  . levels $ game
 
 makeEndLevelMenu :: Game -> Menu
 makeEndLevelMenu game = 
-  let title' = "Level " ++ (show . (+1) . levelIndex $ game) ++ " Complete"
+  let titleComplete = "Level " ++ (show . (+1) . levelIndex $ game) ++ " Complete"
+      titleCaught = "You got caught!"
       bg' = Color (makeColorI 128 128 128 96) . levelP . currentLevel $ game
-  in Menu title' "" bg' [optionReplay, optionNext]
+      captured = isHeroCaught . getGrid . currentLevel $ game
+  in if captured
+      then Menu titleCaught "Try again, maybe?" bg' [optionReplay, optionQuit]
+     else Menu titleComplete "" bg' [optionReplay, optionNext]
 
 currentLevel :: Game -> Level
 currentLevel = (!!) <$> levels <*> levelIndex
