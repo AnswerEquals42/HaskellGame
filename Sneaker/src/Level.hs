@@ -56,12 +56,12 @@ grid2 = Grid $ [ [ Nothing
                  , Just $ regularNode [North, East, South, West] 
                  , Just $ regularNode [South, West] 
                  , Just $ regularNode [North, South] ]
-               , [ Just $ regularNode [North, East, South] 
+               , [ Just $ regularNode [North, East] 
                  , Just $ regularNode [North, East, South, West] 
                  , Just $ regularNode [North, East, South, West] 
                  , Just $ regularNode [North, West] ]
-               , [ Just $ regularNode [North, East] 
-                 , Just $ NodeInfo End [North, East, West] []
+               , [ Nothing
+                 , Just $ NodeInfo End [North, East] []
                  , Just $ regularNode [North, West]
                  , Nothing ] ]
 

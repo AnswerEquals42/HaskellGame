@@ -1,7 +1,7 @@
 module Game where
 
 import Actor
-import Data.Maybe (fromJust, isNothing)
+import Data.Maybe (isJust, fromJust, isNothing)
 import Grid
 import Graphics.Gloss.Interface.Pure.Game
 import Level
@@ -106,11 +106,17 @@ makeEndLevelMenu :: Game -> Menu
 makeEndLevelMenu game = 
   let titleComplete = "Level " ++ (show . (+1) . levelIndex $ game) ++ " Complete"
       titleCaught = "You got caught!"
-      bg' = Color (makeColorI 128 128 128 96) . levelP . currentLevel $ game
-      captured = isHeroCaught . getGrid . currentLevel $ game
-  in if captured
+      titleEnd = "All done"
+      lc = currentLevel game
+      lastLevel = (==) <$> length . levels <*> (+1) . levelIndex
+      bg' = Color (makeColorI 128 128 128 96) . levelP $ lc 
+      captured = isHeroCaught . getGrid $ lc
+  in 
+    if captured
       then Menu titleCaught "Try again, maybe?" bg' [optionReplay, optionQuit]
-     else Menu titleComplete "" bg' [optionReplay, optionNext]
+    else if lastLevel game
+           then Menu titleEnd "bye now" bg' [optionQuit]
+         else Menu titleComplete "" bg' [optionReplay, optionNext]
 
 currentLevel :: Game -> Level
 currentLevel = (!!) <$> levels <*> levelIndex
@@ -119,7 +125,7 @@ currentMenu :: Game -> Menu
 currentMenu = fromJust . menu
 
 isShowingMenu :: Game -> Bool
-isShowingMenu = not . isNothing . menu
+isShowingMenu = isJust . menu
 
 mainWindow :: Display
 mainWindow = InWindow "Sneaker" (600, 600) (100, 100)
@@ -134,6 +140,7 @@ showGame :: Game -> Picture
 showGame game = if isShowingMenu game
                   then display . currentMenu $ game
                 else display . currentLevel $ game
+
 
 -- Float will be a constant duration equal to 1/steps 
 updateStep :: Float -> Game -> Game
@@ -169,7 +176,7 @@ playGame' :: IO ()
 playGame' = play mainWindow white 100 0.0
             (\w -> Scale 0.2 0.2 $ Text . show $ w)
             (\e w -> w)
-            (\f w -> w + f)
+            (flip (+))
 
 playGame :: IO ()
 --main = runLevel hero jerks (Go Nothing)
