@@ -1,7 +1,7 @@
 module Actor where
 
 import Data.Char (toLower)
-import Graphics.Gloss.Interface.Pure.Game
+import Graphics.Gloss.Interface.IO.Game
 
 type Id = Int
 type Facing = Direction
@@ -16,7 +16,7 @@ data Actor = Actor
     deriving (Eq, Show)
 
 -- [(Magnitude of Translation, Rotation)]
-data ActorAnim = ActorAnim { frames :: [(Float, Float)] } deriving (Eq, Show)
+newtype ActorAnim = ActorAnim { frames :: [(Float, Float)] } deriving (Eq, Show)
 
 data ActorType =
     Hero
@@ -30,7 +30,7 @@ data Position =
              , column :: Int }
     deriving (Eq, Show)
 
-data Move = Go { direction :: Maybe Direction } deriving Show
+newtype Move = Go { direction :: Maybe Direction } deriving Show
 
 data Direction =
     North
@@ -57,6 +57,15 @@ maxSteps = 30
 halfSteps :: Num a => a 
 halfSteps = 15
 -- **
+
+-- This could be replaced with a Read instance for ActorType. Which is better?
+strToActorType :: String -> ActorType
+strToActorType s = case s of
+                    "Hero"       -> Hero
+                    "Guard"      -> Guard
+                    "Walker"     -> Walker
+                    "Projectile" -> Projectile
+
 
 -- ** Updaters
 movePlayer :: Float -> Actor -> Move -> Actor
@@ -89,7 +98,7 @@ updateGuard spacing h n =
             facing <*>
             position' <*>
             (mkActorAnim spacing <$> facing <*> id) $ n
-  in if (position h) == (position' n) then n' else n
+  in if position h == position' n then n' else n
 
 updateWalker :: Float -> Actor -> Actor
 updateWalker _ (Actor t i [] f p a) = Actor t i [] f p a
@@ -178,11 +187,14 @@ actorTypeP t =
 
 actorFacingP :: Float -> Picture
 actorFacingP r = 
-  let t = Translate 0 8 $ Polygon [((-4), 0), (0, 8), (4, 0)]
+  let t = Translate 0 8 $ Polygon [(-4, 0), (0, 8), (4, 0)]
   in Rotate r t
 -- **
 
 -- ** Helpers
+heroAt :: Position -> Actor
+heroAt p = Actor Hero 1 [] East p (ActorAnim [])
+
 currentFrame :: ActorAnim -> Direction -> (Float, Float)
 currentFrame aa d = 
   let r = dirToAngle d 
@@ -230,7 +242,7 @@ mkWalkerAnim spacing from to =
 -- maxSteps CANNOT be 0 ... that's probably fine, but maybe protect against that?
 transSteps :: Float -> [Float]
 transSteps dist = 
-  let inc = dist / (fromIntegral maxSteps)
+  let inc = dist / fromIntegral maxSteps
   in fmap (*inc) [maxSteps, maxSteps - 1 .. 0]
 
 dirToAngle :: Direction -> Float
@@ -241,10 +253,10 @@ dirToAngle d = case d of
                 West  -> 270.0
 
 quarterInc :: Float
-quarterInc = 90.0 / (fromIntegral halfSteps)
+quarterInc = 90.0 / fromIntegral halfSteps
 
 halfInc :: Float
-halfInc = 180.0 / (fromIntegral maxSteps)
+halfInc = 180.0 / fromIntegral maxSteps
 
 incSteps :: (Num a, Enum a) => [a]
 incSteps = [0 .. maxSteps]

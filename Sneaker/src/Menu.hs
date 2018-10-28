@@ -1,6 +1,6 @@
 module Menu where
 
-import Graphics.Gloss.Interface.Pure.Game
+import Graphics.Gloss.Interface.IO.Game
 import Screen
 
 data Menu = 
@@ -49,13 +49,13 @@ optionStart :: Option
 optionStart = Option "Start" (100, 100) optionSize StartGame False
 
 optionNext :: Option
-optionNext = Option "Next" (100, (-200)) optionSize NextLevel False
+optionNext = Option "Next" (100, -200) optionSize NextLevel False
 
 optionReplay :: Option
-optionReplay = Option "Retry" ((-100), (-200)) optionSize Replay False
+optionReplay = Option "Retry" (-100, -200) optionSize Replay False
 
 optionQuit :: Option
-optionQuit = Option "Quit" (100, (-200)) optionSize Quit False
+optionQuit = Option "Quit" (100, -200) optionSize Quit False
 -- **
 
 showMenu :: Menu -> Picture
@@ -65,10 +65,10 @@ showMenu menu = Pictures [ bg menu
                          , showOptions (options menu) ]
 
 showTitle :: String -> Picture
-showTitle = Translate (-200) (250) . Scale 0.2 0.2 . Text
+showTitle = Translate (-200) 280 . Scale 0.2 0.2 . Text
 
 showInfo :: String -> Picture
-showInfo = Translate (-200) (180) . Scale 0.1 0.1 . Text
+showInfo = Translate (-200) 210 . Scale 0.1 0.1 . Text
 
 showOptions :: [Option] -> Picture
 showOptions = Pictures . fmap showOption
@@ -109,7 +109,7 @@ checkSelected pt = foldr go []
 
 optionClicked :: (Float, Float) -> Option -> Bool
 optionClicked (x, y) (Option _ a ds _ _) = 
-  (x > fst a && y > snd a && x < (fst a + fst ds) && y < (snd a + snd ds))
+  x > fst a && y > snd a && x < (fst a + fst ds) && y < (snd a + snd ds)
 
 endMenu :: Menu -> Bool
 endMenu = any selected . options

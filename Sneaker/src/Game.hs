@@ -3,8 +3,9 @@ module Game where
 import Actor
 import Data.Maybe (isJust, fromJust, isNothing)
 import Grid
-import Graphics.Gloss.Interface.Pure.Game
+import Graphics.Gloss.Interface.IO.Game
 import Level
+import LevelProvider
 import Menu
 import Screen
 import System.Exit (exitSuccess)
@@ -18,37 +19,37 @@ data Game = Game
   , paused :: Bool }
   deriving Show
 
-handleGameEvent :: Event -> Game -> Game
+handleGameEvent :: Event -> Game -> IO Game
 handleGameEvent e game = if isShowingMenu game
                           then processGameMenuEvent e game
-                         else processGameLevelEvent e game
+                         else return $ processGameLevelEvent e game
 
-processGameMenuEvent :: Event -> Game -> Game
+processGameMenuEvent :: Event -> Game -> IO Game
 processGameMenuEvent e game =
   let m = fromJust . menu $ game
       (m', _) = processEvent e m
   in if acceptingInput m
       then updateGameMenu m' game
-     else game
+     else return game
 
-updateGameMenu :: Menu -> Game -> Game
+updateGameMenu :: Menu -> Game -> IO Game
 updateGameMenu menu game = 
   if endScreen menu 
     then case getSelectedAction menu of
           StartGame -> handleStart game
-          NextLevel -> handleNextLevel game
+          NextLevel -> return $ handleNextLevel game
           Replay    -> handleRetry game
           Quit      -> handleQuit game
-  else game
+  else return game
 
-handleStart :: Game -> Game
-handleStart = Game <$> 
-                levels <*> 
-                pure Nothing <*> 
-                pure 0 <*> 
-                pure True <*> 
-                pure False <*> 
-                pure False
+handleStart :: Game -> IO Game
+handleStart game = return $ Game <$> 
+                              levels <*> 
+                              pure Nothing <*> 
+                              pure 0 <*> 
+                              pure True <*> 
+                              pure False <*> 
+                              pure False $ game
 
 handleNextLevel :: Game -> Game
 handleNextLevel = 
@@ -62,18 +63,18 @@ handleNextLevel =
       finished' <*>
       pure False
 
-handleRetry :: Game -> Game
-handleRetry = 
-  let lvls = mergeLevel <$> (!!) gameLevels . levelIndex <*> id
-  in Game <$>
-      lvls <*>
-      pure Nothing <*>
-      levelIndex <*>
-      started <*>
-      finished <*>
-      paused
-
-handleQuit :: Game -> Game
+handleRetry :: Game -> IO Game
+handleRetry game = do
+  lvl <- reloadLevel . levelIndex $ game
+  return $ Game <$> 
+            mergeLevel lvl <*>
+            pure Nothing <*>
+            levelIndex <*>
+            started <*>
+            finished <*>
+            paused $ game
+            
+handleQuit :: Game -> IO Game
 handleQuit = const initGame
 
 processGameLevelEvent :: Event -> Game -> Game
@@ -128,25 +129,28 @@ isShowingMenu :: Game -> Bool
 isShowingMenu = isJust . menu
 
 mainWindow :: Display
-mainWindow = InWindow "Sneaker" (600, 600) (100, 100)
+mainWindow = InWindow "Sneaker" (800, 800) (100, 100)
 
 steps :: Int
 steps = 100
 
-initGame :: Game
-initGame = Game gameLevels (Just titleScreen) (-1) False False False
+initGame :: IO Game
+initGame = 
+  readLevels >>=
+    \lvls ->
+      return $ Game lvls (Just titleScreen) (-1) False False False
 
-showGame :: Game -> Picture
+showGame :: Game -> IO Picture
 showGame game = if isShowingMenu game
-                  then display . currentMenu $ game
-                else display . currentLevel $ game
+                  then return . display . currentMenu $ game
+                else return . display . currentLevel $ game
 
 
 -- Float will be a constant duration equal to 1/steps 
-updateStep :: Float -> Game -> Game
+updateStep :: Float -> Game -> IO Game
 updateStep step game = if isShowingMenu game
-                        then stepGameMenu step game
-                       else stepGameLevel step game
+                        then return . stepGameMenu step $ game
+                       else return . stepGameLevel step $ game
 
 stepGameMenu :: Float -> Game -> Game
 stepGameMenu step = 
@@ -172,38 +176,16 @@ stepGameLevel step game =
       finished <*>
       paused $ game
 
-playGame' :: IO ()
-playGame' = play mainWindow white 100 0.0
-            (\w -> Scale 0.2 0.2 $ Text . show $ w)
-            (\e w -> w)
-            (flip (+))
-
-playGame :: IO ()
---main = runLevel hero jerks (Go Nothing)
-playGame = play
-            mainWindow
-            white
-            steps
-            initGame
-            showGame
-            handleGameEvent
-            updateStep
-
--- ! (Old) Main Loop !
-runLevel :: Actor -> [Actor] -> Move -> IO ()
-runLevel h vs move = 
-  let grid = updateGrid cleanGrid $ h : vs
-  in putStrLn "-------------------" >>
-     putStr (showGrid grid) >>
-     putStrLn "-------------------" >>
-     if isHeroAtEnd grid
-      then print "Winner" >> exitSuccess
-     else print "Choose a direction" >>
-          getHeroMove >>= 
-            \newMove -> 
-              let h' = movePlayer 100 h newMove
-              in if canMove newMove . getNodeInfo grid . position $ h
-                  then runLevel h' (updateNPCs 100 h' vs) newMove
-                 else print BadMove >>
-                      runLevel h vs move
+playGame :: IO()
+playGame = 
+  initGame >>=
+    \game ->
+      playIO
+        mainWindow
+        white
+        steps
+        game
+        showGame
+        handleGameEvent
+        updateStep
 

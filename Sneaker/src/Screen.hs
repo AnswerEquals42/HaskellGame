@@ -1,6 +1,6 @@
 module Screen where
 
-import Graphics.Gloss.Interface.Pure.Game
+import Graphics.Gloss.Interface.IO.Game
 
 class Screen a where
   display :: a -> Picture

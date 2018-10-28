@@ -2,7 +2,7 @@ module Level where
 
 import Actor
 import Grid
-import Graphics.Gloss.Interface.Pure.Game
+import Graphics.Gloss.Interface.IO.Game
 import Screen
 
 -- TODO: Add HUD (which is just Text for now)
@@ -21,76 +21,6 @@ instance Screen Level where
   endScreen = endLevel
   simStep = stepLevel
   acceptingInput = playerTurn
-
--- ** Constants **
-hero :: Actor
-hero = Actor Hero 1 [] East (Position 0 0) (ActorAnim [])
-
-jerks :: [Actor]
-jerks = 
-  [ Actor Walker 1 [South, South, North, North] South (Position 0 2) (ActorAnim []) ]
-
-regularNode :: [Direction] -> NodeInfo Actor
-regularNode ds = NodeInfo Regular ds []
-
-cleanGrid :: Grid (Maybe (NodeInfo Actor))
-cleanGrid = Grid $ [ [ Just $ NodeInfo Start [East] [] 
-                     , Just $ regularNode [East, South, West] 
-                     , Just $ regularNode [South, West]
-                     , Nothing ]
-                   , [ Nothing
-                     , Just $ regularNode [North, South]
-                     , Just $ regularNode [North, South]
-                     , Nothing ]
-                   , [ Nothing
-                     , Just $ regularNode [North, East]
-                     , Just $ regularNode [North, East, West]
-                     , Just $ NodeInfo End [West] [] ] ]
-
-grid2 :: Grid (Maybe (NodeInfo Actor))
-grid2 = Grid $ [ [ Nothing
-                 , Just $ NodeInfo Start [East, South] []
-                 , Just $ regularNode [East, West] 
-                 , Just $ regularNode [South, West] ]
-               , [ Just $ regularNode [East, South] 
-                 , Just $ regularNode [North, East, South, West] 
-                 , Just $ regularNode [South, West] 
-                 , Just $ regularNode [North, South] ]
-               , [ Just $ regularNode [North, East] 
-                 , Just $ regularNode [North, East, South, West] 
-                 , Just $ regularNode [North, East, South, West] 
-                 , Just $ regularNode [North, West] ]
-               , [ Nothing
-                 , Just $ NodeInfo End [North, East] []
-                 , Just $ regularNode [North, West]
-                 , Nothing ] ]
-
-heroAt :: Int -> Int -> Actor
-heroAt r c = Actor Hero 1 [] East (Position r c) (ActorAnim [])
-
-npcsL2 :: [Actor]
-npcsL2 = 
-  [ Actor 
-      Walker 1 
-      [East, East, East, West, West, West] 
-      East (Position 2 0) (ActorAnim [])
-  , Actor Guard 1 [] East (Position 1 0) (ActorAnim []) ]
-
-level2 :: Level
-level2 = 
-  let h = heroAt 0 1
-      g = updateGrid grid2 (h : npcsL2)
-  in Level g h npcsL2 True
-
-level1 :: Level
-level1 =
-  let h = heroAt 0 0
-      g = updateGrid cleanGrid (h : jerks)
-  in Level g h jerks True
-
-gameLevels :: [Level]
-gameLevels = [level1, level2] 
--- **
 
 -- ** Event Handler ** --
 handleLevelEvent :: Event -> Level -> (Level, Bool)

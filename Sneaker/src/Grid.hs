@@ -1,9 +1,10 @@
 module Grid where
 
 import Actor
-import Data.List (find)
-import Data.Maybe (fromMaybe)
-import Graphics.Gloss.Interface.Pure.Game
+import Data.List (find, findIndex)
+import Data.Maybe (fromJust, fromMaybe, isNothing)
+import Graphics.Gloss.Data.Color
+import Graphics.Gloss.Data.Picture
 
 -- Maybe this would be better as:
 -- type Grid = [[Maybe (NodeInfo Actor)]]
@@ -16,9 +17,12 @@ data GridError =
   deriving Eq
 
 instance Show GridError where
-  show NoEndNode = "Grids need to have exactly one End node."
+  show NoEndNode     = "Grids need to have exactly one End node."
   show TooManyHeroes = "Woah there ... only one Hero allowed at a time."
-  show NoJaggedRows = "Grid has jagged rows. Only rectangular grids are allowed."
+  show NoJaggedRows  = "Grid has jagged rows. Only rectangular grids are allowed."
+
+instance Functor Grid where
+  fmap f (Grid rows) = Grid $ (fmap . fmap) f rows
 
 data NodeInfo a =
   NodeInfo { nodeType :: NodeType
@@ -43,13 +47,42 @@ gridSpacing :: Num a => a
 gridSpacing = 100
 -- **
 
+strToGridNode :: String -> Maybe (NodeInfo Actor)
+strToGridNode [] = Nothing 
+strToGridNode (t:ps) = 
+  let nType = chToNodeType t
+  in if isNothing nType
+      then Nothing
+     else Just $ NodeInfo (fromJust nType) (strToPaths ps) []
+
+chToNodeType :: Char -> Maybe NodeType
+chToNodeType c = case c of
+                  'S' -> Just Start
+                  'E' -> Just End
+                  'R' -> Just Regular
+                  _   -> Nothing
+
+strToPaths :: String -> [Direction]
+strToPaths = foldr f []
+  where f x acc = case chToDirection x of
+                    Nothing -> acc
+                    Just d  -> d : acc
+
+chToDirection :: Char -> Maybe Direction
+chToDirection c = case c of
+                    'n' -> Just North
+                    'e' -> Just East
+                    's' -> Just South
+                    'w' -> Just West
+                    _   -> Nothing
+
 -- ** Picture makers
 gridP :: Grid (Maybe (NodeInfo Actor)) -> Picture
 gridP (Grid []) = Text "Empty Grid"
 gridP (Grid rows) = 
   let height = length rows
       rY = take height [0, (-gridSpacing)..]
-      x = negate $ 0.4 * gridSpacing * (fromIntegral height)
+      x = negate $ 0.4 * gridSpacing * fromIntegral height
       y = 0.5 * gridSpacing * (fromIntegral . length . head $ rows)
   in Translate x y . Pictures . mergePictures . zipWith rowP rY $ rows
 
@@ -57,11 +90,10 @@ gridP (Grid rows) =
 rowP :: Float -> [Maybe (NodeInfo Actor)] -> (Picture, Picture)
 rowP y nodes = 
   let cX = take (length nodes) [0, gridSpacing..]
-      f  = (\x n -> 
-              let (n', a) = nodeP n
-              in (Translate x y $ n', Translate x y $ a))
+      f x n = let (n', a) = nodeP n
+              in (Translate x y n', Translate x y a)
       zs = zipWith f cX nodes
-      go = (\(x, y) acc -> (x : fst acc, y : snd acc))
+      go (x, y) acc = (x : fst acc, y : snd acc)
   in (,) <$> Pictures . fst <*> Pictures . snd $ foldr go ([], []) zs
 
 -- Output is node Picture, actors Picture
@@ -75,29 +107,29 @@ nodeP (Just node) = (ns, as)
 mergePictures :: [(Picture, Picture)] -> [Picture]
 mergePictures ps = 
   let (fs, ss) = foldr go ([], []) ps
-      go = (\(x, y) acc -> (x : fst acc, y : snd acc))
+      go (x, y) acc = (x : fst acc, y : snd acc)
   in fs ++ ss
 
 pathsP :: [Direction] -> Picture
 pathsP ds =
   let m = 0.5 * gridSpacing
       f d ps = case d of
-                North -> Polygon [(1, 0), (1, m), ((-1), m), ((-1), 0)] : ps
-                East  -> Polygon [(0, (-1)), (m, (-1)), (m, 1), (0, 1)] : ps
-                South -> Polygon [((-1), 0), ((-1), (-m)), (1, (-m)), (1, 0)] : ps
-                West  -> Polygon [(0, 1), ((-m), 1), ((-m), (-1)), (0, (-1))] : ps
+                North -> Polygon [(1, 0), (1, m), (-1, m), (-1, 0)] : ps
+                East  -> Polygon [(0, -1), (m, -1), (m, 1), (0, 1)] : ps
+                South -> Polygon [(-1, 0), (-1, -m), (1, -m), (1, 0)] : ps
+                West  -> Polygon [(0, 1), (-m, 1), (-m, -1), (0, -1)] : ps
   in Pictures $ foldr f [] ds
 
 nodeTypeP :: NodeType -> Picture
 nodeTypeP t = 
   let c = Pictures [ThickCircle 20 5, ThickCircle 2 4]
   in case t of 
-       Regular -> Color black c
-       Start -> Color orange c
-       End -> Color (dark blue) c
-       Concealer -> Color black c
+       Regular    -> Color black c
+       Start      -> Color orange c
+       End        -> Color (dark blue) c
+       Concealer  -> Color black c
        Distractor -> Color black c
-       Lootable -> Color black c
+       Lootable   -> Color black c
 -- **
 
 -- ** Update Grid with Actors
@@ -132,7 +164,7 @@ extractNPCs (Grid rows) = (getNPCs rows, Grid . fmap f $ rows)
         h = filter (\a -> actorType a == Hero)
 
 getNPCs :: [[Maybe (NodeInfo Actor)]] -> [Actor]
-getNPCs rows = foldr f [] $ rows
+getNPCs = foldr f [] 
   where f row acc = foldr g acc row
         g node acc' = case node of
                         Nothing -> acc'
@@ -167,7 +199,7 @@ getPlacements :: Int -> [(Float, Float)]
 getPlacements 0 = []
 getPlacements 1 = [(0, 0)]
 getPlacements n = 
-  let inc  = (360.0 / (fromIntegral n)) * (pi/180.0)
+  let inc  = (360.0 / fromIntegral n) * (pi/180.0)
       rads = take n [0.0, inc..] 
       r    = (nodeRadius / 2)
       toX  = (*r) . cos 
@@ -190,22 +222,18 @@ mkGrid rows = case findEndNode (Grid rows) of
 jaggedRows :: [[a]] -> Bool
 jaggedRows [] = False
 jaggedRows [r] = False
-jaggedRows (r:r':rs) = if length r /= length r'
-                        then True
-                       else jaggedRows (r':rs)
+jaggedRows (r:r':rs) = (length r /= length r') || jaggedRows (r':rs)
 
 getNodeInfo :: Grid (Maybe (NodeInfo a)) -> Position -> Maybe (NodeInfo a)
-getNodeInfo (Grid rows) (Position r c) =
-  if r < 0 || r >= length rows
-    then Nothing
-  else if c < 0 || c >= length (rows !! r)
-        then Nothing
-       else rows !! r !! c 
+getNodeInfo (Grid rows) (Position r c)
+  | r < 0 || r >= length rows = Nothing
+  | c < 0 || c >= length (rows !! r) = Nothing
+  | otherwise = rows !! r !! c 
 
 canMove :: Move -> Maybe (NodeInfo Actor) -> Bool
 canMove _ Nothing = False
 canMove (Go Nothing) _ = True
-canMove (Go (Just d)) (Just (NodeInfo _ ps _)) = elem d ps
+canMove (Go (Just d)) (Just (NodeInfo _ ps _)) = d `elem` ps
 
 -- This isn't great if findEndNode returns Nothing ... that's an error
 -- that needs to be prevented
@@ -225,18 +253,28 @@ hasNPC :: Maybe (NodeInfo Actor) -> Bool
 hasNPC = any (not . isHero) . nodeState . fromMaybe (NodeInfo Regular [] [])
 
 findEndNode :: Grid (Maybe (NodeInfo Actor)) -> Maybe (NodeInfo Actor)
-findEndNode (Grid []) = Nothing
-findEndNode (Grid (row:rows)) = 
-  let isEnd Nothing = False
-      isEnd (Just (NodeInfo t _ _)) = t == End
-  in case find isEnd row of
-       Nothing -> findEndNode . Grid $ rows
-       Just endNode -> endNode
+findEndNode (Grid [])         = Nothing
+findEndNode (Grid (row:rows)) =
+  let isEnd Nothing  = False
+      isEnd (Just n) = nodeType n == End
+  in fromMaybe (findEndNode . Grid $ rows) (find isEnd row) 
 
 isHeroCaught :: Grid (Maybe (NodeInfo Actor)) -> Bool
 isHeroCaught (Grid rows) = foldr f False rows
-  where f row acc = foldr g acc row
-        g node acc' = if (&&) <$> hasHero <*> hasNPC $ node then True else acc'
+  where f row acc   = foldr g acc row
+        g node acc' = ((&&) <$> hasHero <*> hasNPC $ node) || acc'
+
+-- Gross - Need to count down rather than up for rows because of foldr.
+getStartPos :: Grid (Maybe (NodeInfo Actor)) -> Position
+getStartPos (Grid rows) = snd $ foldr go (False, Position (length rows - 1) 0) rows
+  where go r (b, p) = if b
+                        then (True, p)
+                      else case isStart r of
+                            Nothing -> (False, Position <$> (+(-1)) . row <*> column $ p)
+                            Just c  -> (True, Position <$> row <*> pure c $ p)
+        isStart = 
+          findIndex ((==) <$> nodeType <*> pure Start) . 
+            fmap (fromMaybe (NodeInfo Regular [] []))
 -- **
 
 -- ** Keep for debugging
@@ -245,7 +283,7 @@ showGrid (Grid rows) = unlines . foldr f [] $ rows
  where f r acc = showRow r : acc
 
 showRow :: [Maybe (NodeInfo Actor)] -> String
-showRow cells = foldr f "" cells
+showRow = foldr f "" 
   where f c acc = foldr (:) acc $ showNode c
 
 showNode :: Maybe (NodeInfo Actor) -> String

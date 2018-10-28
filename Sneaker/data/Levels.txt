@@ -1,0 +1,23 @@
+#Level
+[Se,Resw,Rsw,N]   
+[N,Rns,Rns,N]
+[N,Rne,Rnew,Ew]
+
+Walker 1 [ssnn] s 0 2
+
+#Level
+[N,Ses,Rew,Rsw]
+[Res,Rnesw,Rsw,Rns]
+[Rne,Rnesw,Rnesw,Rnw]
+[N,Ene,Rnw,N]
+
+Guard 1 [] e 1 0
+Walker 1 [eeewww] e 2 0
+
+#Level
+[Res,Sew,Rsw,N,Es] 
+[Rns,N,Rne,Resw,Rnw]
+[Rne,Rew,Rew,Rnw,N]
+
+Guard 1 [] n 1 2
+
