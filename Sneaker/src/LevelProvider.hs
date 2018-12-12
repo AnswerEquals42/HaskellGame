@@ -107,7 +107,7 @@ nodeStringParser =
           return (ntype : path)
 
 isNodeType :: Char -> Bool
-isNodeType = flip elem "SERN"
+isNodeType = flip elem "RNSEC"
 
 isDirection :: Char -> Bool
 isDirection = flip elem "nesw"

@@ -37,6 +37,9 @@ instance Screen Menu where
 titleScreen :: Menu
 titleScreen = Menu "" "" titleBg [optionStart] 
 
+titleScreen' :: Picture -> Menu
+titleScreen' p = Menu "" "" p [optionStart] 
+
 titleBg :: Picture
 titleBg = Translate (-200) (-200) 
             $ Scale 0.5 0.5 

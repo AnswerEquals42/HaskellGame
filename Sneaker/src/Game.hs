@@ -3,6 +3,7 @@ module Game where
 import Actor
 import Data.Maybe (isJust, fromJust, isNothing)
 import Grid
+import Graphics.Gloss.Data.Bitmap (loadBMP)
 import Graphics.Gloss.Interface.IO.Game
 import Level
 import LevelProvider
@@ -116,7 +117,7 @@ makeEndLevelMenu game =
     if captured
       then Menu titleCaught "Try again, maybe?" bg' [optionReplay, optionQuit]
     else if lastLevel game
-           then Menu titleEnd "bye now" bg' [optionQuit]
+           then Menu titleEnd "bye now" bg' [optionReplay, optionQuit]
          else Menu titleComplete "" bg' [optionReplay, optionNext]
 
 currentLevel :: Game -> Level
@@ -139,6 +140,9 @@ initGame =
   readLevels >>=
     \lvls ->
       return $ Game lvls (Just titleScreen) (-1) False False False
+--      loadBMP "data/sample.bmp" >>=
+--        \bgp ->
+--          return $ Game lvls (Just (titleScreen' bgp)) (-1) False False False
 
 showGame :: Game -> IO Picture
 showGame game = if isShowingMenu game
@@ -182,7 +186,8 @@ playGame =
     \game ->
       playIO
         mainWindow
-        white
+        --white
+        (greyN 0.8)
         steps
         game
         showGame

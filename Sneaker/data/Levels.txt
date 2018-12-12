@@ -17,7 +17,8 @@ Walker 1 [eeewww] e 2 0
 #Level
 [Res,Sew,Rsw,N,Es] 
 [Rns,N,Rne,Resw,Rnw]
-[Rne,Rew,Rew,Rnw,N]
+[Rne,Rew,Rew,Cnw,N]
 
 Guard 1 [] n 1 2
+Walker 1 [ensw] e 2 2
 

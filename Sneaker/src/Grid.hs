@@ -60,6 +60,7 @@ chToNodeType c = case c of
                   'S' -> Just Start
                   'E' -> Just End
                   'R' -> Just Regular
+                  'C' -> Just Concealer
                   _   -> Nothing
 
 strToPaths :: String -> [Direction]
@@ -127,7 +128,7 @@ nodeTypeP t =
        Regular    -> Color black c
        Start      -> Color orange c
        End        -> Color (dark blue) c
-       Concealer  -> Color black c
+       Concealer  -> Color green c
        Distractor -> Color black c
        Lootable   -> Color black c
 -- **
@@ -262,7 +263,9 @@ findEndNode (Grid (row:rows)) =
 isHeroCaught :: Grid (Maybe (NodeInfo Actor)) -> Bool
 isHeroCaught (Grid rows) = foldr f False rows
   where f row acc   = foldr g acc row
-        g node acc' = ((&&) <$> hasHero <*> hasNPC $ node) || acc'
+        g node acc' = ((&&) <$> notConcealed <*> isCaught $ node) || acc'
+        notConcealed = (/= Concealer) . nodeType . fromMaybe (NodeInfo Regular [] [])
+        isCaught = (&&) <$> hasHero <*> hasNPC
 
 -- Gross - Need to count down rather than up for rows because of foldr.
 getStartPos :: Grid (Maybe (NodeInfo Actor)) -> Position
