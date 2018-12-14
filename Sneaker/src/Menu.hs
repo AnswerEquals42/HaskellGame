@@ -15,12 +15,14 @@ data Option =
          , anchor :: (Float, Float) -- (x,y) lower left
          , dims :: (Float, Float)   -- (width, height)
          , action :: MenuAction 
-         , selected :: Bool }
+         , selected :: Bool 
+         , optionData :: Int }
          deriving (Eq, Show)
 
 data MenuAction =
     None
   | NextLevel
+  | LevelSelect 
   | Replay
   | StartGame
   | Quit
@@ -48,18 +50,26 @@ titleBg = Translate (-200) (-200)
 optionSize :: (Float, Float)
 optionSize = (100, 40)
 
-optionStart :: Option
-optionStart = Option "Start" (100, 100) optionSize StartGame False
+optionStart :: Option 
+optionStart = Option "Start" (100, 100) optionSize StartGame False (-1)
 
-optionNext :: Option
-optionNext = Option "Next" (100, -200) optionSize NextLevel False
+optionNext :: Option 
+optionNext = Option "Next" (100, -200) optionSize NextLevel False (-1)
 
-optionReplay :: Option
-optionReplay = Option "Retry" (-100, -200) optionSize Replay False
+optionReplay :: Option 
+optionReplay = Option "Retry" (-100, -200) optionSize Replay False (-1)
 
-optionQuit :: Option
-optionQuit = Option "Quit" (100, -200) optionSize Quit False
+optionQuit :: Option 
+optionQuit = Option "Quit" (100, -200) optionSize Quit False (-1)
 -- **
+
+makeLevelSelectMenu :: [(String, Int)] -> Menu
+makeLevelSelectMenu = Menu "Select a Level" "" titleBg . makeLevelOptions
+
+makeLevelOptions :: [(String, Int)] -> [Option]
+makeLevelOptions = foldr go []
+  where pos i' = (100, 200 - (100 * fromIntegral i')) 
+        go (s, i) os = Option s (pos i) optionSize LevelSelect False i : os 
 
 showMenu :: Menu -> Picture
 showMenu menu = Pictures [ bg menu
@@ -81,8 +91,8 @@ showOption option =
   let (x, y) = anchor option
       (w, h) = dims option
       outline = Color black $ Line [(0, 0), (w, 0), (w, h), (0, h), (0, 0)]
-      box = Color (greyN 0.8) $ Polygon [(0, 0), (w, 0), (w, h), (0, h)]
-      txt = Translate (w/3.0) (h/3.0) . Scale 0.15 0.15 . Text $ label option
+      box = Color (greyN 0.95) $ Polygon [(0, 0), (w, 0), (w, h), (0, h)]
+      txt = Translate (w/5.0) (h/3.0) . Scale 0.15 0.15 . Text $ label option
   in Translate x y $ Pictures [box, outline, txt]
 
 -- Only care about where a left click happened for now
@@ -107,18 +117,19 @@ checkSelected pt = foldr go []
                               anchor <*> 
                               dims <*> 
                               action <*> 
-                              pure True $ opt) : acc
+                              pure True <*>
+                              optionData $ opt) : acc 
                      else opt : acc
 
 optionClicked :: (Float, Float) -> Option -> Bool
-optionClicked (x, y) (Option _ a ds _ _) = 
+optionClicked (x, y) (Option _ a ds _ _ _) = 
   x > fst a && y > snd a && x < (fst a + fst ds) && y < (snd a + snd ds)
 
 endMenu :: Menu -> Bool
 endMenu = any selected . options
 
-getSelectedAction :: Menu -> MenuAction
-getSelectedAction = action . head . filter selected . options
+getSelectedOption :: Menu -> Option
+getSelectedOption = head . filter selected . options
 
 -- Use for animation?
 stepMenu :: Float -> Menu -> Menu

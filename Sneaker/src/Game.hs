@@ -35,22 +35,29 @@ processGameMenuEvent e game =
 
 updateGameMenu :: Menu -> Game -> IO Game
 updateGameMenu menu game = 
-  if endScreen menu 
-    then case getSelectedAction menu of
+  let selectedOption = getSelectedOption menu
+      index' = optionData selectedOption
+  in if endScreen menu 
+      then case action selectedOption of
           StartGame -> handleStart game
           NextLevel -> return $ handleNextLevel game
           Replay    -> handleRetry game
           Quit      -> handleQuit game
-  else return game
+          LevelSelect -> handleLevelSelect index' game
+     else return game
 
 handleStart :: Game -> IO Game
-handleStart game = return $ Game <$> 
-                              levels <*> 
-                              pure Nothing <*> 
-                              pure 0 <*> 
-                              pure True <*> 
-                              pure False <*> 
-                              pure False $ game
+handleStart game = 
+  let ns = [0 .. (length . levels $ game) - 1]
+      ss = map (\x -> "Level " ++ show (x + 1)) ns
+      pairs = zip ss ns
+  in return $ Game <$> 
+            levels <*> 
+            (pure . Just . makeLevelSelectMenu $ pairs) <*>
+            pure 0 <*> 
+            pure True <*> 
+            pure False <*> 
+            pure False $ game
 
 handleNextLevel :: Game -> Game
 handleNextLevel = 
@@ -74,6 +81,17 @@ handleRetry game = do
             started <*>
             finished <*>
             paused $ game
+
+handleLevelSelect :: Int -> Game -> IO Game
+handleLevelSelect i game = 
+  let finished' = (<=) <$> length . levels <*> pure i
+  in return $ Game <$>
+                levels <*>
+                pure Nothing <*>
+                pure i <*>
+                pure True <*>
+                finished' <*>
+                paused $ game
             
 handleQuit :: Game -> IO Game
 handleQuit = const initGame
@@ -186,7 +204,6 @@ playGame =
     \game ->
       playIO
         mainWindow
-        --white
         (greyN 0.8)
         steps
         game
