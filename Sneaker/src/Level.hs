@@ -32,7 +32,7 @@ handleLevelEvent e =
       m          -> updateLevelPlayer m . l'
       
 handleViewEvents :: Event -> Level -> Level
-handleViewEvents (EventKey (Char k) Up _ _) l
+handleViewEvents (EventKey (Char k) Down _ _) l
   | k == 'z' = zoomIn l
   | k == 'Z' = zoomOut l
   | otherwise = l
@@ -88,21 +88,27 @@ stepLevelActors =
 
 zoomIn :: Level -> Level
 zoomIn =
-  Level <$>
-    getGrid <*>
-    player <*>
-    npcs <*>
-    playerTurn <*>
-    (+) 0.1 . zoom
+  let capZoom z = if z >= 5.0
+                    then 5.0
+                    else z + 0.1
+  in Level <$>
+      getGrid <*>
+      player <*>
+      npcs <*>
+      playerTurn <*>
+      capZoom . zoom
 
 zoomOut :: Level -> Level
 zoomOut =
-  Level <$>
-    getGrid <*>
-    player <*>
-    npcs <*>
-    playerTurn <*>
-    flip (-) 0.1 . zoom
+  let capZoom z = if z <= 0.5 
+                    then 0.5
+                    else z - 0.1
+  in Level <$>
+      getGrid <*>
+      player <*>
+      npcs <*>
+      playerTurn <*>
+      capZoom . zoom
 
 -- ** Picture makers ** --
 levelP :: Level -> Picture
