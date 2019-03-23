@@ -10,7 +10,8 @@ data Level = Level
   { getGrid :: Grid (Maybe (NodeInfo Actor))
   , player :: Actor
   , npcs :: [Actor] 
-  , playerTurn :: Bool }
+  , playerTurn :: Bool 
+  , zoom :: Float }
 --  , animating :: Bool }
 --  , hud :: String }
   deriving Show
@@ -24,9 +25,18 @@ instance Screen Level where
 
 -- ** Event Handler ** --
 handleLevelEvent :: Event -> Level -> (Level, Bool)
-handleLevelEvent e l = case eventToMove e of
-                        Go Nothing -> (l, False)
-                        m          -> updateLevelPlayer m l
+handleLevelEvent e = 
+  let l' = handleViewEvents e
+  in case eventToMove e of
+      Go Nothing -> flip (,) False . l' --(l', False)
+      m          -> updateLevelPlayer m . l'
+      
+handleViewEvents :: Event -> Level -> Level
+handleViewEvents (EventKey (Char k) Up _ _) l
+  | k == 'z' = zoomIn l
+  | k == 'Z' = zoomOut l
+  | otherwise = l
+handleViewEvents _ l = l
 -- **
 
 -- ** Query ** --
@@ -48,7 +58,8 @@ updateLevelPlayer move lvl =
       grid' = updateGrid . clearGrid . getGrid $ lvl
       p' = movePlayer gridSpacing (player lvl) move
       ns = npcs lvl
-      lvl' = Level (grid' (p': ns)) p' ns False
+      z = zoom lvl
+      lvl' = Level (grid' (p': ns)) p' ns False z
   in if ok then (lvl', True) else (lvl, False)
 
 updateLevelNPCs :: Level -> Level
@@ -56,7 +67,7 @@ updateLevelNPCs =
   let npcs' = updateNPCs <$> pure gridSpacing <*> player <*> npcs
       actors = (:) <$> player <*> npcs'
       grid' = updateGrid <$> clearGrid . getGrid <*> actors
-  in Level <$> grid' <*> player <*> npcs' <*> pure True
+  in Level <$> grid' <*> player <*> npcs' <*> pure True <*> zoom
 
 stepLevel :: Float -> Level -> Level
 stepLevel _ level =
@@ -73,11 +84,29 @@ stepLevelActors =
       player' = stepActor . player
       actors = (:) <$> player' <*> npcs'
       grid' = updateGrid <$> clearGrid . getGrid <*> actors
-  in Level <$> grid' <*> player' <*> npcs' <*> playerTurn
+  in Level <$> grid' <*> player' <*> npcs' <*> playerTurn <*> zoom
+
+zoomIn :: Level -> Level
+zoomIn =
+  Level <$>
+    getGrid <*>
+    player <*>
+    npcs <*>
+    playerTurn <*>
+    (+) 0.1 . zoom
+
+zoomOut :: Level -> Level
+zoomOut =
+  Level <$>
+    getGrid <*>
+    player <*>
+    npcs <*>
+    playerTurn <*>
+    flip (-) 0.1 . zoom
 
 -- ** Picture makers ** --
 levelP :: Level -> Picture
-levelP = gridP . getGrid
+levelP = gridP <$> getGrid <*> zoom
 --levelP lvl = Pictures $ 
 --              [ gridP . getGrid
 --              , Scale 0.3 0.3 . Translate 0 (-250) . Text . show . animating 
@@ -87,7 +116,6 @@ levelP = gridP . getGrid
 
 -- **
 
--- TODO: move to something like a Utilities or Helpers module
 eventToMove :: Event -> Move
 eventToMove (EventKey (SpecialKey sk) Up _ _ ) =
   case sk of

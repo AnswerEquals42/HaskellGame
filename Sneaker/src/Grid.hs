@@ -78,14 +78,14 @@ chToDirection c = case c of
                     _   -> Nothing
 
 -- ** Picture makers
-gridP :: Grid (Maybe (NodeInfo Actor)) -> Picture
-gridP (Grid []) = Text "Empty Grid"
-gridP (Grid rows) = 
+gridP :: Grid (Maybe (NodeInfo Actor)) -> Float -> Picture
+gridP (Grid []) z = Scale z z . Text $ "Empty Grid"
+gridP (Grid rows) z = 
   let height = length rows
       rY = take height [0, (-gridSpacing)..]
       x = negate $ 0.4 * gridSpacing * fromIntegral height
       y = 0.5 * gridSpacing * (fromIntegral . length . head $ rows)
-  in Translate x y . Pictures . mergePictures . zipWith rowP rY $ rows
+  in Scale z z . Translate x y . Pictures . mergePictures . zipWith rowP rY $ rows
 
 -- Output is row Picture, actors Picture
 rowP :: Float -> [Maybe (NodeInfo Actor)] -> (Picture, Picture)
