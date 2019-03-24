@@ -39,7 +39,7 @@ levelParser = do
   skipSpaces
   let h = heroAt . getStartPos $ g
       g' = updateGrid g (h : actors)
-  return $ Level g' h actors True 1.0
+  return $ Level g' h actors True 1.0 (0.0, 0.0)
   
 separatorParser :: ReadP String
 separatorParser = string "#Level" <|> string "#level"
